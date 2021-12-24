@@ -5,3 +5,8 @@ class Check:
         # tuples of (check, bool)
         ]
 
+    def show(self):
+        print(f"Check name = {self.name}")
+        print("Dependencies:")
+        for dep in self.deps:
+            print(dep)

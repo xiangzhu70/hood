@@ -18,7 +18,7 @@ def import_node_file(node_module_name):
     if node_module_name.startswith("node_"):
         node_module = eval(node_module_name)
         for key in dir(node_module):
-            if key.startswith("Node"):
+            if key.startswith("Node") or key.startswith("Check"):
                 globals()[key] = locals()[key]
 
 def import_node_module(node_module_name):
@@ -56,31 +56,8 @@ class NodeDiag:
         self.checks = []
         self.depends = []
 
-    def show(self):
-        print(f"class name: {type(self).__name__}")
-        print(f"NodeDiag inst {self.inst_name}")
-        print(f"Subs:")
-        print(self.subs)
-        print("Checks")
-        print(self.checks)
-    
-
-    def show_tree(self, tree_level, indent=""):
-        indent+="|--"
-        print(f"{indent}{self.inst_name}")
-        if tree_level != -1:
-            tree_level -= 1
-            if tree_level == 0:
-                return
-        for sub in self.subs_dict:
-            # subs list has the raw conf
-            # subs_dict has the processed version, so func:.. is already
-            # converted to the range string.
-            sub_str = sub
-            if self.subs_dict[sub]: # range_str not None
-               sub_str += f"[{self.subs_dict[sub]}]"
-            sub_node = self.enter_sub_node(sub_str, input_dict=self.args_to_sub)
-            sub_node.show_tree(tree_level, indent)
+        # save initialized obj for fast lookup
+        self.checks_dict = {}
 
     def resolve_var(self, arg, input_dict):
         
@@ -243,6 +220,89 @@ class NodeDiag:
 
         return child
 
+    def show(self, cmd_args):
+        print(cmd_args)
+        if not len(cmd_args):       
+            print(f"class name: {type(self).__name__}")
+            print(f"NodeDiag inst {self.inst_name}")
+            print(f"Subs:")
+            print(self.subs)
+            print("Checks")
+            print(self.checks)
+            return
+        import pdb; pdb.set_trace()
+        show_type = cmd_args[0]
+        if show_type == "check":
+            for check in self.checks:
+               print(check)
+
+    def show_tree(self, tree_level, indent=""):
+        indent+="|--"
+        print(f"{indent}{self.inst_name}")
+        if tree_level != -1:
+            tree_level -= 1
+            if tree_level == 0:
+                return
+        for sub in self.subs_dict:
+            # subs list has the raw conf
+            # subs_dict has the processed version, so func:.. is already
+            # converted to the range string.
+            sub_str = sub
+            if self.subs_dict[sub]: # range_str not None
+               sub_str += f"[{self.subs_dict[sub]}]"
+            sub_node = self.enter_sub_node(sub_str, input_dict=self.args_to_sub)
+            sub_node.show_tree(tree_level, indent)
+
+    def checks_init(self):
+        for check_name in self.checks:
+            if check_name in self.checks_dict:
+                print(f"check <{check} already initialized.")
+                continue
+            check_class_name = self.map_check_to_class[check_name]
+            check_obj = self.constructClassObj(check_class_name, inst_name=None)
+            if not check_obj:
+                raise Exception(f"Check {check_name} obj not constructed")
+            self.checks_dict[check_name] = check_obj
+
+    def check(self, cmd_args):
+        print(cmd_args)
+        if len(self.checks) and (not self.checks_dict):
+            self.checks_init()
+
+        if not len(cmd_args):       
+            print("Run overall check")
+            return
+        check_name = cmd_args[0]
+        found = False
+        for check in self.checks:
+            if check == check_name:
+                found = True
+                break
+        if not found:
+            print(f"{check_name} not found")
+            return
+        if len(cmd_args) < 2:
+            self.run_check(check_name)
+            return
+        cmd = cmd_args[1]
+        if cmd == "show":
+            print(f"check_name={check_name}, cmd={cmd}")
+            for check_name in self.checks:
+                self.show_check(check_name)
+            return
+
+    def run_check(self, check_name):
+        if check_name not in  self.checks_dict:
+            print("Invalid check")
+            return
+        check_obj.run()
+
+    def show_check(self, check_name):
+        if check_name not in  self.checks_dict:
+            print("Invalid check")
+            return
+        check_obj = self.checks_dict[check_name]
+        check_obj.show()
 
 if __name__ == "__main__":
     diag_node = NodeDiag(inst_name="diag")

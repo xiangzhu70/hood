@@ -75,7 +75,9 @@ class Session:
             if (args.tree):
                 self.curr_node.show_tree(args.tree, indent="")     
             else:
-                self.curr_node.show()
+                self.curr_node.show(args.cmd_args)
+        elif (args.command == "check"):
+            self.curr_node.check(args.cmd_args) 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -85,12 +87,33 @@ if __name__ == "__main__":
 
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("node", help="node path")
-    parser.add_argument("-n", "--node_args", nargs='*', help="args to pass to node")
+    parser.add_argument("-n", "--node_args", nargs='*',
+        help="args to pass to node\n"
+        "any number of <key>=<value> pairs terminated by -x\n",
+    )
     parser.add_argument("-x", help="dummpy to terminate node_args", action="store_true")
-    parser.add_argument("command", help="command")
-
-    # TBD add tree level value, default to -1
     parser.add_argument("-t", "--tree", type=int, const=-1, nargs="?", help="")
+
+    parser.add_argument(
+        "command",
+        help="[shell|check|show] -- global commands\n"
+        "shell -- Enter a command shell at the node\n"
+        "check -- Run check functions\n"
+        "show [sub|commands|locals|checks]\n"
+        "      sub -- show sub systems. the default\n"
+        "      commands -- show commands at this node\n"
+        "      cmd, cmds -- alias to commands\n"
+        "      locals -- local variables at this node\n"
+        "      checks -- checks at this node\n"
+        "<node-specific commands>, as listed by 'show cmds'\n",
+    )
+
+    parser.add_argument(
+        #'-c', '--cmd_args',
+        "cmd_args",
+        help="command arguments\n" "any number of <key>=<value> pairs",
+        nargs="*",
+    )
 
     args = parser.parse_args()
 
