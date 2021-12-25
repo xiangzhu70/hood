@@ -70,14 +70,22 @@ class Session:
             
     def run(self, args):
         print(args)
-        print(f"cmd is {args.command}")
+        print(f"cmd is {args.command}\n\n")
         if (args.command == "show"):
             if (args.tree):
-                self.curr_node.show_tree(args.tree, indent="")     
+                tree_level = args.tree
+                if len(args.cmd_args):
+                    show_type = args.cmd_args[0]
+                else:
+                    show_type = "node"
+                self.curr_node.show_tree(
+                    tree_level, indent="", show_type=show_type)     
             else:
                 self.curr_node.show(args.cmd_args)
         elif (args.command == "check"):
-            self.curr_node.check(args.cmd_args) 
+            self.curr_node.check(args.cmd_args)
+        elif (args.command == "cmd"):
+            self.curr_node.cmd(args.cmd_args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
