@@ -6,6 +6,8 @@ import re
 verbose = False
 
 def import_node_file(node_module_name):
+    #print(f"node_module_name={node_module_name}")
+    #import pdb; pdb.set_trace()
     if __package__:
         exec(f"from . import {node_module_name}", globals(), locals())
         exec(f"from {__package__}.{node_module_name} import *", globals(), locals())
@@ -14,22 +16,21 @@ def import_node_file(node_module_name):
         exec(f"from {node_module_name} import *", globals(), locals())
     # importing only imports to func locals.  copy it to global so it can
     # be used outside of the function.
-    globals()[node_module_name] = locals()[node_module_name]
-    if node_module_name.startswith("node_"):
-        node_module = eval(node_module_name)
-        for key in dir(node_module):
-            if key.startswith("Node") or key.startswith("Check"):
-                globals()[key] = locals()[key]
+    # globals()[node_module_name] = locals()[node_module_name]
+    node_module = eval(node_module_name)
+    for key in dir(node_module):
+        if not key.startswith("__"):
+            globals()[key] = locals()[key]
 
-def import_node_module(node_module_name):
+def import_sub_node_modules(node_module_path):
 
     if verbose:
-        print(f"Importing node_module {node_module_name}")
-    import_node_file(f"node_{node_module_name}")
-    #TBD remove impl_?
-    impl_module_name = f"impl_{node_module_name}"
-    if os.path.exists(impl_module_name + ".py"):
-        import_node_file(impl_module_name)
+        print(f"Importing node_module {node_module_path}")
+    import_node_file(f"{node_module_path}.node_diag")
+    node_module_file_path = node_module_path.replace(".", "/")
+    for mod_type in ["checks", "commands"]:
+        if os.path.isfile(f"{node_module_file_path}/{mod_type}.py"):
+            import_node_file(f"{node_module_path}.{mod_type}")
 
 class NodeDiag:
 
@@ -116,7 +117,11 @@ class NodeDiag:
         # eval class with (parameter values)
         if verbose:
             print(f"constructClassObj: {class_name}")
-        init_func = eval(f"{class_name}.__init__")
+        try:
+            init_func = eval(f"{class_name}.__init__")
+        except:
+            print(f"eval failed. {class_name}.__init__")
+            import pdb; pdb.set_trace()
         func_args = inspect.getargspec(init_func)
         if verbose:
             print(f"{class_name}.__init__ fucc_args: {func_args}")
@@ -144,7 +149,7 @@ class NodeDiag:
         try:
             classObj = eval(class_init_stmt)
         except:
-            print(f"Failed in <{class_init_stmt}>")
+            print(f"constructClassObj: Failed in eval({class_init_stmt})")
             import pdb; pdb.set_trace()
         return classObj
 
@@ -205,6 +210,10 @@ class NodeDiag:
         # TBD should be able to judge if eth2/1/1 fall into  eth[2..9]/[1..16]/1
         return True
 
+    # sub_str examples:
+    # pim[1-8]  => sub_name=pim, inst=[1-8],
+    # pim2
+    # sub_node_path += sub_str, node_module_name += sub_name
     def enter_sub_node(self, sub_str, input_dict={}):
         (sub_name, range_str, inst) = self.sub_str_parse(sub_str)
         if not sub_name:
@@ -219,6 +228,14 @@ class NodeDiag:
             # node visited before.  a child node object already present
             child = self.children_dict[sub_str]
             return child
+        # The sub directory case
+        sub_dir = os.path.join(self.node_file_path, sub_name)
+        if not self.node_module_path:
+            sub_node_module_path = sub_name
+        else:
+            sub_node_module_path = f"{self.node_module_path}.{sub_name}"
+        if os.path.isdir(sub_dir):
+            import_sub_node_modules(sub_node_module_path) 
         node_class_name = "Node" + sub_name[0].upper() + sub_name[1:]
         if not globals().get(node_class_name):
             if (sub_name in self.map_sub_to_class):
@@ -236,6 +253,8 @@ class NodeDiag:
         child.parent = self
         self.children_dict[sub_str] = child
         child.node_args = input_dict
+        child.node_file_path = sub_dir
+        child.node_module_path = sub_node_module_path
         child.subs_dict_init()
         child.checks_init()
 

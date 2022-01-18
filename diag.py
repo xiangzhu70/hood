@@ -26,17 +26,19 @@ class Session:
 
         self.nodes_visited = {}
 
-        m = re.match(r"((?P<entry_module>\S+)\:)?(?P<node_path>\S+)", node_path)
+        # Examples:
+        # fboss:system.platform -- entry module is fboss.py
+        # :system.platform -- not entry module.  go into sub diretory.
+        m = re.match(r"(?P<entry_module>\S+)?\:(?P<node_path>\S+)", node_path)
         if not m:
             raise Exception("Invalid node path")
         entry_module =  m.group("entry_module")
         node_path = m.group("node_path")
         nodes_in_path = node_path.split(".")
-        if not entry_module:
-            entry_module = nodes_in_path[0]
 
         diag_node.verbose = verbose
-        diag_node.import_node_module(entry_module)
+        if entry_module:
+            diag_node.import_node_module(entry_module)
 
         self.enter_node(node_path, node_args)
         
@@ -57,10 +59,14 @@ class Session:
         node_args_dict = Session.parse_args(node_args)
         self.top_node = NodeDiag(inst_name="top")
         self.curr_node = self.top_node
+        self.top_node.node_file_path = os.getcwd()
+        self.top_node.node_module_path = ""
         nodes_in_path = node_path.split(".")
         curr_node_path = ""
         for node_name in nodes_in_path:
-            curr_node_path += f".{node_name}"
+            if curr_node_path:
+                curr_node_path += "."
+            curr_node_path += node_name
             new_node = self.curr_node.enter_sub_node(node_name, input_dict=node_args_dict)
             if not new_node:
                 raise Exception(f"Failed to reach {curr_node_path}")
@@ -128,6 +134,10 @@ if __name__ == "__main__":
     if args.verbose:
         verbose = args.verbose
 
+
+    #TBD 
+    import os, sys
+    sys.path.insert(0, os.getcwd())
 
     session = Session(args.node, args.node_args)
 
