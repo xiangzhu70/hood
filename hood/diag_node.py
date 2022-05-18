@@ -1,734 +1,635 @@
 #!/usr/bin/env python3
 import os
-import inspect
 import re
+import textwrap
+from collections import deque
+from pdb import set_trace as stop
+
+from diag_check import Check
+from diag_obj import DiagObj, DiagObjType
+from diag_utils import (
+    Instances,
+    group_str_parse,
+    gen_graphviz,
+    NameStyle,
+)
 
 verbose = False
 
-def import_node_file(node_module_name):
-    #print(f"node_module_name={node_module_name}")
-    #import pdb; pdb.set_trace()
-    if __package__:
-        exec(f"from . import {node_module_name}", globals(), locals())
-        exec(f"from {__package__}.{node_module_name} import *", globals(), locals())
-    else:
-        exec(f"import {node_module_name}", globals(), locals())
-        exec(f"from {node_module_name} import *", globals(), locals())
-    # importing only imports to func locals.  copy it to global so it can
-    # be used outside of the function.
-    # globals()[node_module_name] = locals()[node_module_name]
-    node_module = eval(node_module_name)
-    for key in dir(node_module):
-        if not key.startswith("__"):
-            globals()[key] = locals()[key]
 
-def import_sub_node_modules(node_module_path):
+class TraverseTreePlugin:
+    def run_at_node(self, node, indent):
+        pass
 
-    if verbose:
-        print(f"Importing node_module {node_module_path}")
-    import_node_file(f"{node_module_path}.node_diag")
-    node_module_file_path = node_module_path.replace(".", "/")
-    for mod_type in ["checks", "commands"]:
-        if os.path.isfile(f"{node_module_file_path}/{mod_type}.py"):
-            import_node_file(f"{node_module_path}.{mod_type}")
 
-class NodeDiag:
+class FindAttr(TraverseTreePlugin):
+    def __init__(self, key, key_container=None, show=False, attr_run=None):
+        self.key = key
+        if not key_container:
+            key_container = key + "s"
+        self.key_container = key_container
+        self.show = show
+        self.entry_val_default = None
+        self.found = {}
+        self.attr_run = attr_run
+
+    def run_at_node(self, node, indent):
+        if hasattr(node, self.key_container):
+            for item in node.__dict__[self.key_container]:
+                item_path = f"{node.node_path}:[{self.key}]{item}"
+                self.found[item_path] = self.entry_val_default
+                if self.show:
+                    print(f"{indent}|--[{self.key}] {item}")
+                if self.attr_run:
+                    self.attr_run(node, item, indent)
+
+
+class FindCheckDepPlugin(TraverseTreePlugin):
+    def __init__(
+        self,
+        cause_dict=None,  # val cause key
+        consequence_dict=None,  # val depends on key, is consequence of key
+        show=False,
+    ):
+        self.key = "check"
+        self.key_container = "checks"
+        self.cause_dict = cause_dict
+        self.consequence_dict = consequence_dict
+        self.show = show
+
+    def add_into_dict(self, cause, consequence):
+        if True:
+            if consequence not in self.cause_dict:
+                self.cause_dict[consequence] = [cause]
+            else:
+                self.cause_dict[consequence].append(cause)
+        if True:
+            if cause not in self.consequence_dict:
+                self.consequence_dict[cause] = [consequence]
+            else:
+                self.consequence_dict[cause].append(consequence)
+
+    def run_at_node(self, node, indent):
+        session = node.session
+        if hasattr(node, self.key_container):
+            for item in node.__dict__[self.key_container]:
+                check = getattr(node, item)
+                check_path = f"{node.node_path}:[check]{item}"
+                for cond in check.ok_necessary_conditions:
+                    session.goto_obj(node.node_path)
+                    (cond_check, cond_status) = Check.cond_parse(cond)
+                    session.obj_path.move(cond_check, obj_type=DiagObjType.Check)
+                    self.add_into_dict(
+                        cause=session.obj_path.path, consequence=check_path
+                    )
+
+
+class NodeDiag(DiagObj):
 
     map_sub_to_class = {}
+    map_cmd_to_class = {}
+    map_check_to_class = {}
 
-    def __init__(self, inst_name=""):
+    import_path_class_type_append = "node_diag"
+
+    def __init__(self, context_node, inst_name, node_file_path, import_path):
+        node_parent = context_node
+        if node_parent:
+            self.session = node_parent.session
+            parent_path = node_parent.node_path
+            if parent_path != ":":
+                parent_path += "."
+            self.node_path = parent_path + inst_name
+
+        else:
+            self.node_path = ":"
+
         self.inst_name = inst_name
-        self.node_args = {}
         # parent node, often the source of the structure information.
-        self.parent = None
-       
-        # the local variables for the local cmd run environment.
-        self.local_vars = []
-        # the sub notes
+        self.node_parent = node_parent
+
+        self.node_file_path = node_file_path
+        self.import_path = import_path
+
+        # This legit obj names (cmds, checks etc) will be cached here.
+        self.obj_names_dict = {}
+
+        # self.map_sub_to_class = {}
+        # self.map_cmd_to_class = {}
+        # self.map_check_to_class = {}
+
+        # By default, this is True except the top empty node,
+        # so the hierarchy structures
+        # (subs, cmds, checks) are derived from the files.
+        # In more complicated cases such as structure changes for
+        # inherited classes, muliple elements, set auto_cfg to False,
+        # in init(), and explicitly set (subs, cmds, checks)
+        self.auto_cfg = node_parent is not None
+
+        # ownership if each node is clearly defined
+        # if it is empty, the ownership should be inherited from
+        # the hierarchical parents
+        self.owners = []
+
+        # the sub nodes
         self.subs = []
-        self.args_to_sub = {} 
-        # functions needed?  could the class member functions acheive the purpose?
-        # These are not exact python functions.  It is more a cmd helper to add
-        # local variables for cmd excution.
-        self.functions = []
-        # Python inheritance is used for inheriting the structure (subs).
         # commands here do not implicitly inherit.
         self.cmds = []
+        # the diag checks
         self.checks = []
 
-        # save constructed children objects
-        self.children_dict = {}
+        # Run customized init for the diag nodes if init is overridden
+        self.init()
 
-        # save initialized obj for fast lookup
-        self.checks_dict = {}
+        self.post_init()
 
-        self.cmds_dict = {}
+    # To be overridden
+    def init(self):
+        pass
 
-    def get_map_check_to_class(self):
-        return {}
+    def post_init(self):
+        if self.auto_cfg:
+            self.cfg_by_files()
 
-    def resolve_var(self, arg, input_dict):
-        
-        if arg in input_dict:
-            return True, input_dict[arg]
-        if arg in self.map_var_resolve:
-            resolve_str = self.map_var_resolve[arg]
-            if "self" in resolve_str:
-                val = eval(resolve_str)
-                return True, val
-        #if arg in self.local_vars:
-        #    return True, self.local_vars[arg]
-        # TBD get from function.
-        return False, None
+        self.objs_dicts_init()
 
+    def cfg_by_files(self):
+        # support cmds and checks, but not subs for now
+        map_class_to_obj_names = {}
+        map_obj_to_class = {}
+        map_obj_to_class.update(self.map_cmd_to_class)
+        map_obj_to_class.update(self.map_check_to_class)
+        for obj in map_obj_to_class:
+            class_name = map_obj_to_class[obj]
+            map_class_to_obj_names[class_name] = obj
 
-    def call_func(self, func, input_dict = None):
-        # find class name, get __init__ func, get parameters
-        # resolve parameters.
-        # eval class with (parameter values)
-        if verbose:
-            print(f"call_func: {func}")
-        func_obj = eval(f"self.{func}")
-        func_args = inspect.getargspec(func_obj)
-        if verbose:
-            print(func_args)
-        args_str = ""
-        for idx, arg in enumerate(func_args.args):
-            if arg == "self":
+        for (obj_type, objs_list) in [
+            (DiagObjType.Command, self.cmds),
+            (DiagObjType.Check, self.checks),
+        ]:
+            if not self.check_obj_file_exists(obj_type):
                 continue
-            status, val = self.resolve_var(arg, input_dict)
-            if (not status) and func_args.defaults:
-                val = func_args.defaults[idx-1]
-                if not val:
-                    raise Exception(f"Failed to resolve {arg}")
-            args_str += f"{arg}='{val}', "
-        if args_str.endswith(", "):
-            args_str = args_str[:-2]
-        ret = None
-        try:
-            ret = eval(f"self.{func}({args_str})")
-        except:
-            import pdb; pdb.set_trace()
-        return ret
+            import_path = f"{self.import_path}.{obj_type.name.lower()}s"
+            import_path = f"{self.session.import_path_prefix}{import_path}"
+            obj_class_names = DiagObj.module_get_obj_class_names(import_path, obj_type)
+            for (class_name, obj_name) in obj_class_names:
+                if class_name in map_class_to_obj_names:
+                    # The auto-discovered class is already statically declared
+                    continue
+                objs_list.append(obj_name)
 
-    def constructClassObj(self, class_name, inst_name, input_dict = None):
-        # find class name, get __init__ func, get parameters
-        # resolve parameters.
-        # eval class with (parameter values)
-        if verbose:
-            print(f"constructClassObj: {class_name}")
-        try:
-            init_func = eval(f"{class_name}.__init__")
-        except:
-            print(f"eval failed. {class_name}.__init__")
-            import pdb; pdb.set_trace()
-        func_args = inspect.getargspec(init_func)
-        if verbose:
-            print(f"{class_name}.__init__ fucc_args: {func_args}")
-        args_str = ""
-        for idx, arg in enumerate(func_args.args):
-            if arg == "self":
-                continue
-            if arg == "parent":
-                args_str += "self, "
-                continue
-            if arg == "inst_name":
-                args_str += f"'{inst_name}'" + ", "
-                continue
-            status, val = self.resolve_var(arg, input_dict)
-            if (not status) and func_args.defaults:
-                val = func_args.defaults[idx-1]
-                if not val:
-                    import pdb; pdb.set_trace()
-                    raise Exception(f"Failed to resolve <{arg}>")
-            args_str += f"{arg}='{val}', "
-        if args_str.endswith(", "):
-            args_str = args_str[:-2]
-        classObj = None
-        class_init_stmt = f"{class_name}({args_str})"
-        try:
-            classObj = eval(class_init_stmt)
-        except:
-            print(f"constructClassObj: Failed in eval({class_init_stmt})")
-            import pdb; pdb.set_trace()
+    def objs_dicts_init(self):
+
+        # constructed objects will be saved here for fast lookup
+        self.objs_dict = {}
+
+        self.sub_groups = {}
+
+        # At init time, set up the names dict, so they are legit to access
+        # when needed.  The objects will be constructed when being accessed
+        # in __getattr__
+        for sub_name in self.subs:
+            if sub_name in self.map_sub_to_class:
+                sub_type_name = sub_name
+                range_str = None
+                inst = None
+            else:
+                (sub_type_name, range_str, inst) = group_str_parse(sub_name)
+
+            if range_str:
+                self.sub_groups[sub_type_name] = range_str
+            self.obj_names_dict[sub_type_name] = DiagObjType.Node
+        for cmd_name in self.cmds:
+            self.obj_names_dict[cmd_name] = DiagObjType.Command
+        for check_name in self.checks:
+            self.obj_names_dict[check_name] = DiagObjType.Check
+
+    def construct_class_obj(self, module_path, class_name, class_type, inst_name):
+        import_path = f"{self.session.import_path_prefix}{module_path}"
+        classObj = DiagObj.constrct_obj(
+            self, import_path, class_name, class_type, inst_name
+        )
         return classObj
 
-    def sub_str_parse(self, sub_str):
-        sub_name = None
-        range_str = None
-        inst = None
-        if sub_str in self.map_sub_to_class:
-            sub_name = sub_str
-            return (sub_name, range_str, inst)
-        # sub_name is before the first '['
-        m = re.match(r"(?P<sub_name>[^\[]+)\[(?P<range_str>\S+)\]$", sub_str)
-        if not m:
-            m = re.match(r"(?P<sub_name>\S+)(?P<inst>\d+)$", sub_str)
-            if m:
-                # example: pim1
-                sub_name = m.group("sub_name")
-                inst = m.group("inst")
-            else:
-                sub_name = sub_str
-        else:
-            # range formats
-            sub_name = m.group("sub_name")
-            range_str = m.group("range_str")
-            # Enter the group, not the instance.  In show_tree case.
-            # example: pim[1..8]
-            m = re.match("(?P<idx_start>\d+)\.\.(?P<idx_end>\d+)$", range_str)
-            if m:
-                idx_start = int(m.group("idx_start"))
-                idx_end = int(m.group("idx_end"))
-                # this range_str is ok, do nothing
-            else:
-                # func:<func>
-                m = re.match(r"func:(?P<func>\S+)$", range_str)
-                if m:
-                     func = m.group("func")
-                     range_str = self.call_func(func)
-                     # update the sub_str with the output of the func
-                     sub_str = f"{sub_name}[{range_str}]"
-                # example: eth2/2/1, an inst with special char, wrapped with []
-                elif ".." not in range_str:
-                    inst = range_str
-                    range_str = None
-        return (sub_name, range_str, inst)
-
-    def subs_dict_init(self):
-        subs_dict = {}
-        for sub_str in self.subs:
-            (sub_name, range_str, inst) = self.sub_str_parse(sub_str)
-            if inst:
-                import pdb; pdb.set_trace()
-                raise(Exception("Not expecting instance selection here"))
-            subs_dict[sub_name] = range_str
-        self.subs_dict = subs_dict
-
     def sub_validate_instance(self, sub_name, inst):
-        range_str = self.subs_dict[sub_name]
+        # range_str = self.subs_dict[sub_name]
         # TBD should be able to judge if eth2/1/1 fall into  eth[2..9]/[1..16]/1
         return True
 
-    # sub_str examples:
+    # sub_name examples:
     # pim[1-8]  => sub_name=pim, inst=[1-8],
     # pim2
     # sub_node_path += sub_str, node_module_name += sub_name
-    def enter_sub_node(self, sub_str, input_dict={}):
-        (sub_name, range_str, inst) = self.sub_str_parse(sub_str)
-        if not sub_name:
-            import pdb; pdb.set_trace()
-            raise Exception("Empty subname")
+    def enter_sub_node(self, sub_name):
+
+        if sub_name in self.map_sub_to_class:
+            sub_type_name = sub_name
+            range_str = None
+            inst = None
+        else:
+            (sub_type_name, range_str, inst) = group_str_parse(sub_name)
+        if not sub_type_name:
+            stop()
+            raise Exception("Empty sub type name")
         if inst:
-            valid = self.sub_validate_instance(sub_name, inst)
+            valid = self.sub_validate_instance(sub_type_name, inst)
             if not valid:
-                import pdb; pdb.set_trace()
-                raise(Exception("Not a valid instance"))
-        if sub_str in self.children_dict:
-            # node visited before.  a child node object already present
-            child = self.children_dict[sub_str]
-            return child
-        # The sub directory case
-        sub_dir = os.path.join(self.node_file_path, sub_name)
-        if not self.node_module_path:
-            sub_node_module_path = sub_name
-        else:
-            sub_node_module_path = f"{self.node_module_path}.{sub_name}"
-        if os.path.isdir(sub_dir):
-            import_sub_node_modules(sub_node_module_path) 
-        node_class_name = "Node" + sub_name[0].upper() + sub_name[1:]
-        if not globals().get(node_class_name):
-            if (sub_name in self.map_sub_to_class):
-                node_class_name = self.map_sub_to_class[sub_name]
-            elif ("*" in self.map_sub_to_class):
-                node_class_name = self.map_sub_to_class["*"]
-            else:
-                print(f"sub_name={sub_name} missing from {self.inst_name}")
-                import pdb; pdb.set_trace()
-                print(f"sub_name={sub_name}")
-                raise Exception(f"Cannot resolve class for {sub_name}")
-        child = self.constructClassObj(node_class_name, inst_name=sub_str, input_dict=input_dict)
-        if not child:
-            raise(Exception(f"failed to construct a class obj for {sub_str}"))
-        child.parent = self
-        self.children_dict[sub_str] = child
-        child.node_args = input_dict
-        child.node_file_path = sub_dir
-        child.node_module_path = sub_node_module_path
-        child.subs_dict_init()
-        child.checks_init()
+                import pdb
 
-        return child
+                pdb.set_trace()
+                raise (Exception("Not a valid instance"))
+        sub_obj = self.__get_class_obj(
+            DiagObjType.Node, sub_type_name, inst_name=sub_name
+        )
+        os.chdir(sub_obj.node_file_path)
 
-    
-    def enter_node(self, node_path, input_dict={}):
-        '''
-        Enter node by path
-        The formats are:
-        .n1.n2 or n1.n2  relative to current node
-        :top.n1.n2  go to domain top first.
-        ../..n_parent
-        '''
-        curr = self
-        if node_path == ".":
-            return curr
-        if node_path.startswith(":"):
-            while curr.parent and (curr.parent.inst_name != "top"):
-                curr = curr.parent
-            node_path = node_path[1:] # remove ":"
-        else:
-            while node_path.startswith(".."):
-                curr = curr.parent
-                node_path = node_path[2:] # remove ".."
-                # remove "/" used to separate ".."
-                if node_path.startswith("/"):
-                   node_path = node_path[1:]
-        while node_path:
-            fields = node_path.split(".", maxsplit=1)
-            sub = fields[0]
-            if len(fields) >= 2:
-                node_path = fields[1] # remaining node path
-            else:
-                node_path = ""
-            curr = curr.enter_sub_node(sub, input_dict=input_dict)
-            if not curr:
-               raise Exception(f"Failed to enter {sub}")
-        return curr 
-        
+        self.session.curr_node = sub_obj
+        return sub_obj
+
+    def show_summary(self):
+        print(f"class name: {type(self).__name__}")
+        print(f"inst_name: {self.inst_name}")
+        print(f"node_path: {self.node_path}")
+        print(f"node file path: {self.node_file_path}")
+        if hasattr(self, "info"):
+            print(f"Info: {self.info}")
+        self.show_subs()
+        self.show_cmds()
+        self.show_checks()
+
+    def show_subs(self):
+        print("--Sub nodes:")
+        for sub in self.subs:
+            print(sub)
+
+    def show_checks(self):
+        print("--Checks")
+        for check in self.checks:
+            print(f"  {check}")
 
     def show_cmds(self):
+        print("--Commands")
         for cmd in self.cmds:
-            print(cmd)
+            print(f"  {cmd}")
 
     def show(self, cmd_args):
-        #print(cmd_args)
-        if not len(cmd_args):       
-            print(f"class name: {type(self).__name__}")
-            print(f"NodeDiag inst {self.inst_name}")
-            print(f"Subs:")
-            print(self.subs)
-            print("Checks")
-            print(self.checks)
-            return
-        import pdb; pdb.set_trace()
-        show_type = cmd_args[0]
-        if show_type == "check":
-            for check in self.checks:
-               print(check)
-
-    def show_tree(self, tree_level, indent="", show_type="node"):
-        indent+="|--"
-        print(f"{indent}{self.inst_name}")
-        if show_type == "check":
-            for check_name in self.checks:
-                if check_name == "overall":
-                    check_name_show = ""
-                else:
-                    check_name_show = check_name
-                print(f"{indent}|--[check] {check_name_show}")
-                check_obj = self.checks_dict[check_name]
-                try:
-                    conds = check_obj.ok_sufficient_conditions
-                except:
-                    print(f"sufficent, check_name={check_name}")
-                    import pdb; pdb.set_trace()
-                    pass
-                for cond in conds:
-                    print(f"{indent}|--|--[suf] {cond}")
-                try:
-                    conds = check_obj.prerequisite_conditions
-                except:
-                    print(f"pre, check_name={check_name}")
-                    import pdb; pdb.set_trace()
-                    pass
-                for cond in conds:
-                    print(f"{indent}|--|--[pre] {cond}")
-                try:
-                    conds = check_obj.ok_necessary_conditions
-                except:
-                    print(f"check_name={check_name}")
-                    import pdb; pdb.set_trace()
-                    pass
-                for cond in conds:
-                    print(f"{indent}|--|--[dep] {cond}")
-        elif show_type == "cmd" or show_type == "command":
-            for cmd_name in self.cmds:
-                print(f"{indent}|--[cmd] {cmd_name}")
-        if tree_level != -1:
-            tree_level -= 1
-            if tree_level == 0:
-                return
-        for sub in self.subs_dict:
-            # subs list has the raw conf
-            # subs_dict has the processed version, so func:.. is already
-            # converted to the range string.
-            sub_str = sub
-            if self.subs_dict[sub]: # range_str not None
-               sub_str += f"[{self.subs_dict[sub]}]"
-            sub_node = self.enter_sub_node(
-                sub_str, input_dict=self.args_to_sub)
-            sub_node.show_tree(tree_level, indent, show_type=show_type)
-
-    # much duplicated logic.  to be combined with check.  TBD
-    def cmds_init(self):
-        for cmd_name in self.cmds:
-            if cmd_name in self.cmds_dict:
-                print(f"cmd <{cmd_name} already initialized.")
-                continue
-            cmd_class_name = self.map_cmd_to_class[cmd_name]
-            cmd_obj = self.constructClassObj(cmd_class_name, inst_name=None)
-            if not cmd_obj:
-                raise Exception(f"Command {cmd_name} obj not constructed")
-            self.cmds_dict[cmd_name] = cmd_obj
-
-    def cmd(self, cmd_args):
-        print(cmd_args)
-        if len(self.cmds) and (not self.cmds_dict):
-            self.cmds_init()
-
+        # print(cmd_args)
         if not len(cmd_args):
-            self.show_cmds()
+            self.show_summary()
             return
 
-        cmd_name = cmd_args[0]
+        else:
+            print(cmd_args)
+            if (cmd_args[0]) == "check":
+                self.show_checks()
+            elif (cmd_args[0]) == "cmd":
+                self.show_cmds()
 
-        if cmd_name == "remote":
-            # test remote execution here
-            path = cmd_args[1]
-            self.remote_run(path)
- 
-            return
+    def traverse_tree(
+        self,
+        tree_level=0,
+        tree_level_max=-1,
+        plugin=None,
+        indent="",
+        show_node=False,
+        expand_group=False,
+    ):
+        indent += "|--"
+        if show_node:
+            print(f"{indent}{self.inst_name}")
+        if plugin:
+            plugin.run_at_node(node=self, indent=indent)
+        if tree_level_max != -1:
+            if tree_level >= tree_level_max:
+                return
+        for sub in self.subs:
+            if not expand_group or (sub not in self.sub_groups):
+                sub_node = self.enter_sub_node(sub)
+                sub_node.traverse_tree(
+                    tree_level=tree_level + 1,
+                    tree_level_max=tree_level_max,
+                    plugin=plugin,
+                    indent=indent,
+                    show_node=show_node,
+                )
+            else:
+                sub_type, range_str = self.sub_groups[sub]
+                instances = Instances(sub_type, range_str, context=self)
+                for inst in instances:
+                    sub_node = self.enter_sub_node(inst)
+                    sub_node.traverse_tree(
+                        tree_level=tree_level + 1,
+                        tree_level_max=tree_level_max,
+                        plugin=plugin,
+                        indent=indent,
+                        show_node=show_node,
+                    )
 
-        if cmd_name not in self.cmds_dict:
-            print(f"{cmd_name} not found")
-            return
+        if tree_level == 0:
+            self.session.goto_obj(self.node_path)
 
-        if len(cmd_args) < 2:
-            self.run_cmd(cmd_name)
-            return
+    def find_attr(self, attr, show_node=False, show=False):
+        plugin = FindAttr(attr, show=show)
+        self.traverse_tree(0, plugin=plugin, show_node=show_node)
+        return plugin.found
 
-    def checks_init(self):
-        for check_name in self.checks:
-            if check_name in self.checks_dict:
-                print(f"check <{check} already initialized.")
-                continue
-            check_class_name = "Check" + check_name[0].upper() + check_name[1:]
-            if not globals().get(check_class_name):
-                if hasattr(self, "map_check_to_class"):
-                    check_map = self.map_check_to_class
-                else:
-                    check_map = self.get_map_check_to_class()
-                if check_name in check_map:
-                    check_class_name = check_map[check_name]
-                else:
-                    import pdb; pdb.set_trace()
-                    raise Exception(f"cannot find check class for <{check_name}>")
-            check_obj = self.constructClassObj(check_class_name, inst_name=check_name)
-            if not check_obj:
-                raise Exception(f"Check {check_name} obj not constructed")
-            self.checks_dict[check_name] = check_obj
+    def show_tree(self, show_type=None, tree_level_max=-1):
+        def attr_check_run(node, check_name, indent):
+            if check_name == "overall":
+                check_name_show = ""
+            else:
+                check_name_show = check_name
+            print(f"{indent}|--[check] {check_name_show}")
+            check = getattr(node, check_name)
+            conds = check.ok_sufficient_conditions
+            for cond in conds:
+                print(f"{indent}|--|--[suf] {cond}")
+            conds = check.prerequisite_conditions
+            for cond in conds:
+                print(f"{indent}|--|--[pre] {cond}")
+            conds = check.ok_necessary_conditions
+            for cond in conds:
+                print(f"{indent}|--|--[dep] {cond}")
 
-    def check(self, cmd_args):
-        #print(cmd_args)
-        if len(self.checks) and (not self.checks_dict):
-            self.checks_init()
+        if show_type == "check":
+            attr_show = False
+            attr_run = attr_check_run
+        else:
+            attr_show = True
+            attr_run = None
 
-        if not len(cmd_args):       
-            print("Run overall check")
-            return
-        
-        if cmd_args[0] == "state_machine":
-            self.decision_state_machine_graph()
-            return
+        if show_type == "node":
+            plugin = None
+        else:
+            plugin = FindAttr(show_type, show=attr_show, attr_run=attr_run)
+        self.traverse_tree(
+            0, plugin=plugin, show_node=True, tree_level_max=tree_level_max
+        )
 
-        check_name = cmd_args[0]
-        if check_name not in self.checks_dict:
-            print(f"{check_name} not found")
-            return
-        if len(cmd_args) < 2:
-            self.run_check(check_name)
-            return
-        cmd = cmd_args[1]
-        print(f"check_name={check_name}, cmd={cmd}\n\n")
-        if cmd == "show":
-            self.show_check(check_name)
-            return
-        elif cmd == "graph":
-            #self.check_dep_graph(check_name)
-            self.decision_graph(f".:{check_name}")
+    def check_obj_file_exists(self, obj_type):
+        file_path = self.node_file_path
+        if obj_type == DiagObjType.Check:
+            file_path += "/checks.py"
+        elif obj_type == DiagObjType.Command:
+            file_path += "/commands.py"
+        else:
+            raise Exception("unknown obj_type")
 
-    def run_check(self, check_name):
-        if len(self.checks) and (not self.checks_dict):
-            self.checks_init()
+        return os.path.exists(file_path)
+
+    def obj_name_to_class_name(self, class_type, obj_name):
+        obj_class_name = None
+        if class_type == DiagObjType.Node:
+            name_map_obj_to_class = "map_sub_to_class"
+        else:
+            name_map_obj_to_class = f"map_{class_type.value.lower()}_to_class"
+        map_obj_name_to_class = getattr(self, name_map_obj_to_class)
+        if obj_name in map_obj_name_to_class:
+            obj_class_name = map_obj_name_to_class[obj_name]
+        if not obj_class_name:
+            obj_class_name = class_type.name + NameStyle.underscore_to_camel(obj_name)
+        return obj_class_name
+
+    def __getattr__(self, attr_name):
+        if attr_name in ["info"]:
+            return None
+        if attr_name not in self.obj_names_dict:
+            # if not attr_name.startswith("map_"):
+            print(f"attr_name <{attr_name}> not in obj_names_dict")
+            stop()
+            raise AttributeError
+        obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
+        if not obj:
+            print("failed to set up <{attr_name}> obj")
+            raise AttributeError
+        setattr(self, attr_name, obj)
+        return obj
+
+    def get_import_path(
+        self,
+        class_type,
+        obj_name="",  # for Node type only
+        inst_name="",
+    ):
+        node_path = self.node_path
+        import_path = self.import_path
+        sub_dir = ""
+        sub_node_import_path = ""
+
+        if class_type == DiagObjType.Node:
+            sub_dir = os.path.join(self.node_file_path, obj_name)
+            if not os.path.isdir(sub_dir):
+                # other configuation to be supported.
+                err_msg = f"sub direcotry {sub_dir} not found"
+                print(err_msg)
+                stop()
+                raise Exception(err_msg)
+            if node_path == ":":
+                sub_node_import_path = import_path + obj_name
+            else:
+                # example case: obj_name = pim, inst_name = pim1
+                sub_node_import_path = import_path + "." + obj_name
+            import_path = sub_node_import_path + ".node_diag"
+        elif class_type == DiagObjType.Command:
+            import_path += ".commands"
+        elif class_type == DiagObjType.Check:
+            import_path += ".checks"
+        import_path = f"{self.session.import_path_prefix}{import_path}"
+        return import_path, sub_dir, sub_node_import_path
+
+    # For node, it is possible to have multiple instances.  In that case,
+    # obj_name is the object type name, and inst_name is the full name.
+    # For example, for PIMs in range [1..8], the object_name is "pim",
+    # the inst name could be pim2, or the full group pim[1..8].
+    def __get_class_obj(self, class_type, obj_name, inst_name=None):
+
+        if not inst_name:
+            inst_name = obj_name
+        if self.inst_name != "top" and obj_name not in self.obj_names_dict:
+            stop()
+            raise AttributeError
+
+        objs_dict = self.objs_dict
+        if inst_name in objs_dict:
+            return objs_dict[inst_name]
+
+        import_path, sub_dir, sub_node_import_path = self.get_import_path(
+            class_type, obj_name=obj_name
+        )
+        obj_class_name = self.obj_name_to_class_name(class_type, obj_name)
+
+        class_obj = DiagObj.construct_obj(
+            self,
+            import_path,
+            obj_class_name,
+            inst_name=inst_name,
+            node_file_path=sub_dir,
+            import_path=sub_node_import_path,
+        )
+        if not class_obj:
+            raise Exception(f"{class_type.name} {obj_name} obj not constructed")
+        objs_dict[inst_name] = class_obj
+        return class_obj
+
+    def run_cmd(self, cmd):
+        cmdObj = getattr(self, cmd)
+        # for prerequisite in cmdObj.prerequisite_conditions:
+        #    pass
+        return cmdObj.run()
+
+    def run_check(self, check):
+        checkObj = getattr(self, check)
+        return checkObj.run()
+
+    def remote_run(self, path: str):
+        curr_obj = self.session.goto_obj(path)
+        ret = curr_obj.run()
+        # after remote run, go back to the original node
+        self.session.goto_obj(self.node_path)
+        return ret
+
+    # Find all direct depending checks and build the dict
+    def check_direct_deps_find(self):
+
+        cause_dict = {}
+        consequence_dict = {}
+        self.session.goto_obj(self.node_path)
+        plugin = FindCheckDepPlugin(cause_dict, consequence_dict)
+        self.traverse_tree(0, plugin=plugin)
+        return (cause_dict, consequence_dict)
+
+    def check_dependents_find(self, check_name):
+        top_node = self.session.top_node
+        cause_dict, consequence_dict = top_node.check_direct_deps_find()
+
+        check_path = f"{self.node_path}:[check]{check_name}"
+        check_all_dependents = []
+        que = deque()
+        que.append(check_path)
+        while que:
+            check = que.popleft()
+            check_all_dependents.append(check)
+            if check in consequence_dict:
+                for dep_check in consequence_dict[check]:
+                    que.append(dep_check)
+        return check_all_dependents
+
+    def dep_graph(self, check_name: str, lines, parent_name=None, level=0):
+        session = self.session
+        # print(f"Check {check_name} dep_graph")
         if not check_name:
             check_name = "overall"
-        if check_name not in self.checks_dict:
-            print(f"run_check at node {self.parent.inst_name}: invalid check {check_name}")
-            return
-        check_obj = self.checks_dict[check_name]
-        check_obj.run()
-
-    def show_check(self, check_name):
-        if check_name not in  self.checks_dict:
-            print("Invalid check")
-            return
-        check_obj = self.checks_dict[check_name]
-        check_obj.show()
-
-    def run(self, target:str):
-        '''
-        target string could be [cmd]<cmd_name> or [check]<check_name>
-        [check]<empty> means [check]overall".
-        '''
-        m = re.match("\[(?P<target_type>\w+)\](?P<target_name>\w*)", target)
-        if not m:
-            raise Exception("node run: invalid target <{target}>")
-        target_type = m.group("target_type")
-        target_name = m.group("target_name")
-        # TBD combine cmd and check
-        if target_type == "check":
-            self.run_check(target_name)
-        elif target_type == "cmd":
-            self.run_cmd(target_name)
-
-    def remote_run(self, path:str):
-        print(f"remote_run: path={path}")
-        m = re.match(r"(?P<node_path>.*):(?P<run_target>[^: ]+)", path)
-        if not m:
-            raise Exception(f"remote_run, invalid path <{path}>")
-        node_path = m.group("node_path")
-        run_target = m.group("run_target")
-        remote_node = self.enter_node(node_path, self.node_args)
-        import pdb; pdb.set_trace()
-        remote_node.run(run_target)
-
-    def triage(self, check_name : str):
-
-        print(f"Check {check.name} triage")
-        check = self.checks_dict[check_name]
-        ret = check.run()
-        if ret == "OK":
-            print("check returned OK, no issue to further triage")
-            return
-        if len(check.ok_necessary_conditions) == 0:
-            print("check failed. no dependency to further check")
-            return
-        for cond in check.ok_necessary_conditions:
-            m = re.match(r"(?P<cond_check>[^=]+)==(?P<cond_status>.*)", cond)
-            if not m:
-                print(f"Invalid condition statement {cond}")
-                continue
-            cond_check = m.group("cond_check") 
-            cond_status_expect = m.group("cond_status")
-            remote_node, check_ret = self.remote_run(cond_check)
-            if check_ret == cond_status_expect:
-                continue
-            remote_check_obj.triage()
-
-    def check_dep_graph(self, check_name:str, parent_name=None, lines=[], level=0):
-        #print(f"Check {check_name} dep_graph")
-        if not check_name:
-            check_name = "overall"
-        if not len(self.checks_dict):
-            self.checks_init() #TBD
-        if check_name not in self.checks_dict:
-             print(f"<{check_name}> not found for {self.inst_name}")
-             import pdb; pdb.set_trace()
-             raise Exception("Invalid check")
-        check = self.checks_dict[check_name]
-        #print(f"Check name: {check.name}")
-        if len(lines) == 0:
+        check = getattr(self, check_name)
+        # print(f"Check name: {check.name}")
+        if level == 0:
             lines.append("digraph {")
             lines.append("node [shape=Rectangle]")
-            level = 0
             parent_name = check_name
         for cond in check.ok_necessary_conditions:
-            (cond_check, cond_status) = Check.cond_parse(cond)
-            lines.append(f'"{parent_name}"->"{cond_check}"')
-            (node_path, cond_check_name) = Check.check_path_parse(cond_check)
-            remote_node = self.enter_node(node_path, input_dict=self.node_args)
-            remote_node.check_dep_graph(cond_check_name, parent_name=cond_check, lines=lines, level=level+1)
-            
-        if level == 0:
-            lines.append("}")
-            for line in lines:
-                print(line)
-
-    # get valid label for graphviz.  no : or . allowed.
-    def check_path_to_label(self, check_path: str):
-        if check_path.startswith(".:"):
-            # it could be too short and having naming conflicts
-            check_path = self.inst_name + "." + check_path
-        return Check.check_path_to_label(check_path)
-
-    def decision_graph(self, check_path:str, dep_parent_label=None, prev=None, prev_line_label=None, lines=[], level=0, visited = {}):
-        # self is the node.
-
-        #print(f"Check {check_name} dep_graph")
-        (node_path, check_name) = Check.check_path_parse(check_path)
-        check_label = self.check_path_to_label(check_path)
-        if not check_name:
-            check_name = "overall"
-        if not len(self.checks_dict):
-            self.checks_init() #TBD
-        if check_name not in self.checks_dict:
-             print(f"<{check_name}> not found for {self.inst_name}")
-             import pdb; pdb.set_trace()
-             raise Exception("Invalid check")
-        check = self.checks_dict[check_name]
-
-        if level == 0:
-            lines.append("digraph {")
-            lines.append("node [shape=Rectangle]")
-            visited = {}
-
-        check_entry_label = check_label
-        check_ok_label = check_label
-        check_fail_label = check_label
-        check_suf_label = check_label
-        check_pre_label = check_label
-        
-        if check_label in visited:
-            is_composite = visited[check_label]
-            if is_composite:
-                check_entry_label = f"{check_label}_entry"
-            if dep_parent_label:
-                # dashed lines shoe dependency
-                lines.append(f"{dep_parent_label} -> {check_entry_label} [style=dashed]")
-            if prev:
-                lines.append(f"{prev} -> {check_entry_label} {prev_line_label}")
-            return visited[check_label]
-            
-        (suf_exist, pre_exist, internal_lines) = check.check_graph_internal(check_path, check_label)
-        lines += internal_lines
-        is_composite = suf_exist or pre_exist
- 
-        if is_composite:
-            check_entry_label = f"{check_label}_entry"
-            check_ok_label = f"{check_label}_ok"
-            check_fail_label = f"{check_label}_fail"
-        if suf_exist:
-            check_suf_label = f"{check_label}_suf"
-        if pre_exist:
-            check_pre_label = f"{check_label}_pre"
-
-        if dep_parent_label:
-            # dashed lines shoe dependency
-            lines.append(f"{dep_parent_label} -> {check_entry_label} [style=dashed]")
-        if prev:
-            lines.append(f"{prev} -> {check_entry_label} {prev_line_label}")
-
-        if check_label in visited:
-            return visited[check_label]
-
-        if suf_exist:
-            prev = check_suf_label
-            for idx, cond in enumerate(check.ok_sufficient_conditions):
-                cond_check_path, cond_status = Check.cond_parse(cond)
-                cond_check_label = self.check_path_to_label(cond_check_path)
-                lines.append(f'{cond_check_label} [label="{cond_check_path}"]')
-                if idx == 0:
-                    prev_line_label = ""
-                else:
-                    prev_line_label = '[label="N"]'
-                lines.append(f'{prev}->{cond_check_label} {prev_line_label}')
-                lines.append(f'{cond_check_label}->{check_ok_label} [label="Y"]')
-                prev = cond_check_label
-            lines.append(f'{prev}->{check_pre_label} [label="N"]')
-
-        if pre_exist:
-            prev  = check_pre_label
-            for idx, cond in enumerate(check.prerequisite_conditions):
-                cond_check_path, cond_status = Check.cond_parse(cond)
-                (cond_node_path, cond_check_name) = Check.check_path_parse(cond_check_path)
-                cond_check_label = self.check_path_to_label(cond_check_path)
-                if idx == 0:
-                    prev_line_label = ""
-                else:
-                    prev_line_label = '[label="Y"]'
-                remote_node = self.enter_node(cond_node_path, input_dict=self.node_args)
-                remote_node.decision_graph(
-                    cond_check_path, dep_parent_label=None, prev=prev, prev_line_label=prev_line_label, lines=lines, level=level+1)
-                prev = cond_check_label
-            lines.append(f'{prev}->{check_label}_run [label="Y"]')
-        
-        # dep loop    
-        prev = check_fail_label
-        dep_parent_label = check_fail_label
-        prev_is_composite = False
-        for idx, cond in enumerate(check.ok_necessary_conditions):
-             (cond_check_path, cond_status) = Check.cond_parse(cond)
-             (cond_node_path, cond_check_name) = Check.check_path_parse(cond_check_path)
-             cond_check_label = self.check_path_to_label(cond_check_path)
-             if idx == 0:
-                 if is_composite:
-                     prev_line_label = ''
-                 else:
-                     prev_line_label = '[label="N"]'
-             else:
-                 if prev_is_composite:
-                     prev_line_label = ''
-                     prev = f"{prev}_ok"
-                 else:
-                     prev_line_label = '[label="Y"]'
-             remote_node = self.enter_node(cond_node_path, input_dict=self.node_args)
-             lines.append(f'# == level={level}, dep loop from {check.inst_name} to {cond_check_path}')
-             prev_is_composite = remote_node.decision_graph(cond_check_path, dep_parent_label=dep_parent_label, prev=prev, prev_line_label=prev_line_label, lines=lines, level=level+1)
-             prev = cond_check_label
-        if len(check.ok_necessary_conditions):
-            to_label = f"{check_fail_label}_no_failed_dep"
-            to_text = f"[investigate]No failed dependency for {check_fail_label}"
-            lines.append(f'{to_label} [label="{to_text}" shape=signature]')
-            if prev_is_composite:
-                lines.append(f'{prev}_ok->{to_label}')
-            else:
-                lines.append(f'{prev}->{to_label} [label="Y"]')
-        if check.action_on_fail:
-            to_label = f"{check_label}_on_fail"
-            to_text = check.action_on_fail
-            lines.append(f'{to_label} [label="{to_text}", shape=signature]')
-            if (not len(check.ok_necessary_conditions)) and is_composite:
-                lines.append(f'{prev}->{to_label}')
-            elif prev_is_composite:
-                lines.append(f'{prev}_fail->{to_label}')
-            else:
-                lines.append(f'{prev}->{to_label} [label="N"]')
+            (cond_check_path, cond_status) = Check.cond_parse(cond)
+            lines.append(f'"{parent_name}"->"{cond_check_path}"')
+            session.goto_obj(cond_check_path)
+            session.curr_node.dep_graph(
+                session.obj_path.obj_name,
+                lines=lines,
+                parent_name=cond_check_path,
+                level=level + 1,
+            )
 
         if level == 0:
             lines.append("}")
-            for line in lines:
-                print(line)
+            gen_graphviz(lines)
 
-        visited[check_label] = is_composite
-        return is_composite
+    def add_obj(self, obj_type, obj_name):
+        src_prefix = os.path.expanduser(f"{self.session.src_file_path_prefix}")
+        node_file_path = self.node_file_path.replace(
+            self.session.top_node.node_file_path, ""
+        )
+        if obj_type not in [key.value for key in DiagObjType]:
+            raise Exception("invalid type to add")
+        type_name = DiagObjType(obj_type).name
+        file_name = f"{type_name.lower()}s.py"
+        if obj_type == "node":
+            sub_dir_name = f"{src_prefix}{node_file_path}/{obj_name}"
+            if os.path.exists(sub_dir_name):
+                raise Exception("the sub node directory already exists")
+            os.mkdir(sub_dir_name)
+            src_file_path = f"{sub_dir_name}/node_diag.py"
+        else:
+            src_file_path = f"{src_prefix}{node_file_path}/{file_name}"
+        class_name = type_name + NameStyle.underscore_to_camel(obj_name)
+        print(f"add {obj_type} {obj_name} at {src_file_path}, class {class_name}")
+        import_prefix = self.session.import_path_prefix
+        if obj_type == "node":
+            head_str = (
+                f"from {import_prefix}diag.diag_{obj_type} import {type_name}Diag"
+            )
+            is_new_file = True
+            class_def_str = textwrap.dedent(
+                f"""
+                class {class_name}({type_name}Diag):
+                    pass
+                """
+            )
+        else:
+            head_str = f"from {import_prefix}diag.diag_{obj_type} import {type_name}"
+            return_stmt = {"cmd": "", "check": 'return "FAIL"'}
+            class_def_str = textwrap.dedent(
+                f"""\n
+                class {class_name}({type_name}):
+                    def run(self, cmd_args):
+                        print(f"--> Entering {{self.check_path}} run()")
+                        print("    ** file path: {self.session.src_file_path_prefix}{node_file_path}/{file_name}")
+                        print("    ** This is a stub.  Add the real implementation here")
+                        {return_stmt[obj_type]}
+            """
+            )
+            is_new_file = not os.path.exists(src_file_path)
+        with open(src_file_path, "a") as f:
+            if is_new_file:
+                f.write(head_str + "\n\n")
+            f.write(class_def_str)
 
-    def decision_state_machine_graph(self):
-        print("digraph {")
-        print("node [shape=Rectangle]")
-        print('entry [label="Entry"]')
-        print('ok [label="OK"]')
-        print('fail [label="FAIL"]')
-        print('suf [label="sufficient conditions"]')
-        print('pre [label="prerequisite conditions"]')
-        print('pre_recurse [label="recurse into failed prerequisite check"]')
-        print('run [label="check.run()"]')
-        print('dep [label="dependencies"]')
-        print('dep_recurse [label="recurse into failed dependency"]')
-        print('root_cause [label="[root_cause]<cause message>"]')
-        print('investigate [label="[investigate]No failed dependency.  Unknown cause"]')
-        print('entry -> suf')
-        print('suf -> ok [label="Y"]')
-        print('suf -> pre [label="N"]')
-        print('pre -> run [label="Y"]')
-        print('pre -> pre_recurse [label="N"]')
-        print('run -> ok [label="Y"]')
-        print('run -> fail [label="N, no dep"]')
-        print('run -> dep [label="N"]')
-        print('dep -> dep_recurse [label="N"]')
-        print('dep_recurse -> root_cause [label="N"]')
-        print('dep -> investigate [label="Y"]')
-        print("}")
-        
-if __name__ == "__main__":
-    diag_node = NodeDiag(inst_name="diag")
-    diag_node.show()
+        print(f"Added {self.node_path}:[{obj_type}]{obj_name}")
+
+    def cli_get_cmds(self):
+        return ["show", "run", "find"]
+
+    def cli_cmd(self, arg_cmd, cmd_args, tree=False):
+        ret = None
+        if arg_cmd == "show":
+            if tree:
+                tree_level_max = tree
+                if len(cmd_args):
+                    show_type = cmd_args[0]
+                else:
+                    show_type = "node"
+                self.show_tree(show_type=show_type, tree_level_max=tree_level_max)
+            else:
+                self.show(cmd_args)
+        elif arg_cmd == "run":
+            obj_type = cmd_args[1]
+            obj_name = cmd_args[2]
+            if obj_type == "check":
+                stop()
+                ret = self.run_check(obj_name)
+                print("ret = {ret}")
+            elif obj_type == "cmd":
+                ret = self.run_cmd(obj_name)
+        elif arg_cmd == "find":
+            if not len(cmd_args):
+                raise Exception("Nothing to be found")
+            obj_type = cmd_args[0]
+            found = self.find_attr(obj_type)
+            for key in found:
+                print(f"{key}: {found[key]}")
+
+        elif arg_cmd == "add":
+            if len(cmd_args) < 2:
+                raise Exception("Expecting input add [cmd|check|sub] <obj_name>")
+            obj_type = cmd_args[0]
+            if obj_type == "sub":
+                obj_type = "node"
+            obj_name = cmd_args[1]
+            ret = self.add_obj(obj_type, obj_name)
+            return ret

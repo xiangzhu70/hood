@@ -1,11 +1,46 @@
-class Command:
-    def __init__(self, cmd_name):
-        self.name = cmd_name
+# from pdb import set_trace as stop
+
+from diag_obj import DiagObj
+
+
+class Command(DiagObj):
+
+    import_path_append = ".commands"
+
+    def __init__(self, context_node, inst_name, node_file_path, import_path):
+        self.node = context_node
+        self.inst_name = inst_name
+        self.sh_cmd = self.node.session.sh_cmd
+        self.init()
+
+    def init(self):
+        pass
 
     def show(self):
-        print(f"Command name = {self.name}")
+        print(f"Command name = {self.inst_name}")
 
-    def run(self):
-        print(f"-- Command {self.name} run")
+    def run(self, cmd_args):
+        print(f"-- Command {self.inst_name} run, args={cmd_args}")
 
+    def devserver_run(self, cmd, timeout=1):
+        ret = self.sh_cmd.devserver_run(cmd, timeout=timeout)
+        return ret
 
+    def usrv_run(self, cmd, timeout=1):
+        host = self.node.session.node_args["host"]
+        output = self.sh_cmd.usrv_run(host, cmd)
+        return output
+
+    def bmc_run(self, cmd, timeout=1):
+        host = self.node.session.node_args["host"]
+        output = self.sh_cmd.bmc_run(host, cmd)
+        return output
+
+    def bcm_run(self, cmd, timeout=1):
+        host = self.node.session.node_args["host"]
+        output = self.sh_cmd.bcm_run(host, cmd)
+        return output
+
+    def cli_cmd(self, arg_cmd, cmd_args, tree=False):
+        if arg_cmd == "run":
+            self.run(cmd_args)
