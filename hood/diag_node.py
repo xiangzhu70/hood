@@ -5,9 +5,9 @@ import textwrap
 from collections import deque
 from pdb import set_trace as stop
 
-from diag_check import Check
-from diag_obj import DiagObj, DiagObjType
-from diag_utils import (
+from hood.diag_check import Check
+from hood.diag_obj import DiagObj, DiagObjType
+from hood.diag_utils import (
     Instances,
     group_str_parse,
     gen_graphviz,

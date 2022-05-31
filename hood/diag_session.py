@@ -9,10 +9,10 @@ import os
 import re
 from pdb import set_trace as stop
 
-from diag_check import Check
-from diag_node import NodeDiag
-from diag_obj import DiagObjType, DiagObj
-from diag_utils import parse_key_val_pairs, ShellCommand
+from hood.diag_check import Check
+from hood.diag_node import NodeDiag
+from hood.diag_obj import DiagObjType, DiagObj
+from hood.diag_utils import parse_key_val_pairs, ShellCommand
 
 verbose = False
 
@@ -27,13 +27,14 @@ class Session:
         node_args_str,
         import_path_prefix="",
         top_node_name=None,
-        log=None,
         src_file_path_prefix="",
+        verbose=False
     ):
         self.session_id = Session.sessions_count
         Session.sessions_count += 1
 
-        self.sh_cmd = ShellCommand(log=log)
+        self.verbose = verbose
+        self.sh_cmd = ShellCommand(verbose=verbose)
 
         if not top_node_name:
             top_node_name = entry_obj_path.partition('.')[0]

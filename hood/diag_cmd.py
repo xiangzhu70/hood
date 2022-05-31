@@ -1,6 +1,6 @@
 # from pdb import set_trace as stop
 
-from diag_obj import DiagObj
+from hood.diag_obj import DiagObj
 
 
 class Command(DiagObj):
@@ -22,24 +22,9 @@ class Command(DiagObj):
     def run(self, cmd_args):
         print(f"-- Command {self.inst_name} run, args={cmd_args}")
 
-    def devserver_run(self, cmd, timeout=1):
-        ret = self.sh_cmd.devserver_run(cmd, timeout=timeout)
+    def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
+        ret = self.sh_cmd.run_cmd(cmd, shell=shell, realtime=realtime, timeout=timeout)
         return ret
-
-    def usrv_run(self, cmd, timeout=1):
-        host = self.node.session.node_args["host"]
-        output = self.sh_cmd.usrv_run(host, cmd)
-        return output
-
-    def bmc_run(self, cmd, timeout=1):
-        host = self.node.session.node_args["host"]
-        output = self.sh_cmd.bmc_run(host, cmd)
-        return output
-
-    def bcm_run(self, cmd, timeout=1):
-        host = self.node.session.node_args["host"]
-        output = self.sh_cmd.bcm_run(host, cmd)
-        return output
 
     def cli_cmd(self, arg_cmd, cmd_args, tree=False):
         if arg_cmd == "run":

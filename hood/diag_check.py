@@ -5,9 +5,9 @@ import unittest
 from pdb import set_trace as stop
 from unittest.mock import patch
 
-from diag_cmd import Command
-from diag_obj import DiagObjType
-from diag_utils import gen_graphviz
+from hood.diag_cmd import Command
+from hood.diag_obj import DiagObjType
+from hood.diag_utils import gen_graphviz
 
 
 class Check(Command):

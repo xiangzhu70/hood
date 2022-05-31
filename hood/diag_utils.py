@@ -3,6 +3,9 @@
 import os
 import re
 import tempfile
+import subprocess
+import shlex
+
 from pdb import set_trace as stop
 
 
@@ -117,8 +120,44 @@ class NameStyle:
         return underscore_str
 
 class ShellCommand:
-    def __init__(self, log=None):
-        self.log = log
+    def __init__(self, verbose=None):
+        self.verbose = verbose
 
-    def run_cmd(self, cmd):
-        print(f"-- run_cmd {cmd}")
+    def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
+        if self.verbose:
+            print(f"== run_cmd [{cmd}]")
+        if realtime:
+            return self._run_cmd_realtime(cmd, shell=shell, timeout=timeout)
+
+        try:
+            cmpl = subprocess.run(shlex.split(cmd),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=timeout, shell=shell)
+            output = cmpl.stdout.decode().strip()
+        except Exception as e:
+            output = str(e)
+        if self.verbose:
+            print(f"--output: [{output}]")
+        return output
+
+    def _run_cmd_realtime(self, cmd, shell=False, timeout=100):
+        if not shell:
+            cmd_param = shlex.split(cmd)
+        else:
+            cmd_param = cmd
+            # if shell==True, use the raw cmd as the calling param
+        try:
+            cmpl = subprocess.run(cmd_param,
+                #stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=timeout, shell=shell)
+            stdout = cmpl.stdout
+            if isinstance(stdout, bytes):
+                output = stdout.decode().strip()
+            elif not output:
+                output = "None"
+            else:
+                output = stdout
+        except Exception as e:
+            output = str(e)
+        return output
+
