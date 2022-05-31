@@ -8,11 +8,9 @@ import argparse
 import re
 import os
 
-#import diag_node
-#from diag_node import *
-from diag_session import Session
+from hood.diag_session import Session
 
-verbose = False
+from pdb import set_trace as stop
 
 
 if __name__ == "__main__":
@@ -53,15 +51,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.verbose:
-        verbose = args.verbose
 
-
-    #TBD 
-    import os, sys
-    sys.path.insert(0, os.getcwd())
-
-    session = Session(args.node, args.node_args)
+    session = Session(args.node, args.node_args, verbose=args.verbose)
 
     session.cli_cmd(args.command, args.cmd_args, args.tree)
 
