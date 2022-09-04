@@ -159,10 +159,23 @@ class NodeDiag(DiagObj):
         map_obj_to_class = {}
         map_obj_to_class.update(self.map_cmd_to_class)
         map_obj_to_class.update(self.map_check_to_class)
+        map_obj_to_class.update(self.map_sub_to_class)
         for obj in map_obj_to_class:
             class_name = map_obj_to_class[obj]
             map_class_to_obj_names[class_name] = obj
 
+        # for sub nodes
+        if False:
+            # for now.  disable it.  listdir shows directory in random order.
+            # better to control the order explicitly
+            print(f"listdir: {os.listdir(self.node_file_path)}")
+            for f in os.listdir(self.node_file_path):
+                sub_path = os.path.join(self.node_file_path, f)
+                if os.path.isdir(sub_path):
+                    if os.path.exists(os.path.join(sub_path, "node_diag.py")):
+                        self.subs.append(f)
+
+        # for commands and checks
         for (obj_type, objs_list) in [
             (DiagObjType.Command, self.cmds),
             (DiagObjType.Check, self.checks),
@@ -367,14 +380,16 @@ class NodeDiag(DiagObj):
         )
 
     def check_obj_file_exists(self, obj_type):
-        file_path = self.node_file_path
-        if obj_type == DiagObjType.Check:
-            file_path += "/checks.py"
-        elif obj_type == DiagObjType.Command:
-            file_path += "/commands.py"
-        else:
+        map_obj_type_to_file = {
+            DiagObjType.Check: "checks.py",
+            DiagObjType.Command: "commands.py",
+            # need to search in sub directories. a different work flow.
+            #DiagObjType.Node: "node_diag.py",
+        }
+        if obj_type not in map_obj_type_to_file:
             raise Exception("unknown obj_type")
-
+        file = map_obj_type_to_file[obj_type]
+        file_path = f"{self.node_file_path}/{file}"
         return os.path.exists(file_path)
 
     def obj_name_to_class_name(self, class_type, obj_name):

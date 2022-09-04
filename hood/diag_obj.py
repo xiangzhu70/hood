@@ -132,8 +132,6 @@ class DiagObj:
         node_file_path=None,
         import_path=None,
     ):
-        if "link-tree" in import_module_path:
-            stop()
         module = importlib.import_module(import_module_path)
         if class_name not in module.__dict__:
             err_msg = f"Invalid class name {class_name}"

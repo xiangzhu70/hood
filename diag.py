@@ -20,6 +20,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-p", "--path")
     parser.add_argument("node", help="node path")
     parser.add_argument("-n", "--node_args", nargs='*',
         help="args to pass to node\n"
@@ -51,8 +52,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-
-    session = Session(args.node, args.node_args, verbose=args.verbose)
+    if args.path:
+        src_file_path_prefix = os.path.abspath(os.path.expanduser(args.path))
+    else:
+        src_file_path_prefix = os.getcwd()
+    session = Session(args.node, args.node_args, 
+        src_file_path_prefix=src_file_path_prefix, verbose=args.verbose)
 
     session.cli_cmd(args.command, args.cmd_args, args.tree)
 

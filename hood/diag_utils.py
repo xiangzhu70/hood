@@ -137,7 +137,9 @@ class ShellCommand:
         except Exception as e:
             output = str(e)
         if self.verbose:
-            print(f"--output: [{output}]")
+            print("-- output: ")
+            print(output)
+            print("-- output end")
         return output
 
     def _run_cmd_realtime(self, cmd, shell=False, timeout=100):

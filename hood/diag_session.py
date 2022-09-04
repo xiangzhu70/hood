@@ -5,6 +5,7 @@
 diag_version = "0.0.0"
 
 import importlib
+import sys
 import os
 import re
 from pdb import set_trace as stop
@@ -41,6 +42,8 @@ class Session:
         self.top_node_name = top_node_name
         self.src_file_path_prefix = src_file_path_prefix
 
+        sys.path.append(src_file_path_prefix)
+
         if import_path_prefix != "" and not import_path_prefix.endswith("."):
             import_path_prefix += "."
         self.import_path_prefix = import_path_prefix
@@ -51,16 +54,15 @@ class Session:
         self.node_args = parse_key_val_pairs(node_args_str)
 
         self.obj_path = DiagObj.Path(init_path=":", top_node_name=top_node_name)
-        self.setup_top_node(top_node_name)
+        self.setup_top_node(top_node_name, node_file_path=src_file_path_prefix)
         self.goto_obj(entry_obj_path)
 
-    def setup_top_node(self, top_node_name):
+    def setup_top_node(self, top_node_name, node_file_path=""):
         top_empty_node = NodeDiag(
-            context_node=None, inst_name="top", node_file_path="", import_path=""
+            context_node=None, inst_name="top", node_file_path=node_file_path, import_path=""
         )
         top_empty_node.subs.append(top_node_name)
         top_empty_node.session = self
-        top_empty_node.node_file_path = os.getcwd()
         top_empty_node.import_path = ""
         self.curr_node = top_empty_node
         self.curr_obj = top_empty_node
