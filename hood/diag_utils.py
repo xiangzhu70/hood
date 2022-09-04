@@ -120,12 +120,11 @@ class NameStyle:
         return underscore_str
 
 class ShellCommand:
-    def __init__(self, verbose=None):
-        self.verbose = verbose
+    def __init__(self, logger):
+        self.logger = logger
 
     def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
-        if self.verbose:
-            print(f"== run_cmd [{cmd}]")
+        self.logger.info(f"== run_cmd [{cmd}]")
         if realtime:
             return self._run_cmd_realtime(cmd, shell=shell, timeout=timeout)
 
@@ -136,10 +135,11 @@ class ShellCommand:
             output = cmpl.stdout.decode().strip()
         except Exception as e:
             output = str(e)
-        if self.verbose:
-            print("-- output: ")
-            print(output)
-            print("-- output end")
+
+        self.logger.info("-- output: ")
+        self.logger.info(output)
+        self.logger.info("-- output end")
+
         return output
 
     def _run_cmd_realtime(self, cmd, shell=False, timeout=100):

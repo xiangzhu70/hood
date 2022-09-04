@@ -4,10 +4,9 @@
 
 diag_version = "0.0.0"
 
-import importlib
 import sys
-import os
-import re
+import logging
+
 from pdb import set_trace as stop
 
 from hood.diag_check import Check
@@ -35,7 +34,8 @@ class Session:
         Session.sessions_count += 1
 
         self.verbose = verbose
-        self.sh_cmd = ShellCommand(verbose=verbose)
+        self.setup_logging()
+        self.sh_cmd = ShellCommand(self.logger)
 
         if not top_node_name:
             top_node_name = entry_obj_path.partition('.')[0]
@@ -56,6 +56,17 @@ class Session:
         self.obj_path = DiagObj.Path(init_path=":", top_node_name=top_node_name)
         self.setup_top_node(top_node_name, node_file_path=src_file_path_prefix)
         self.goto_obj(entry_obj_path)
+
+    def setup_logging(self):
+        logger = logging.getLogger('diag log')
+        logger.setLevel(logging.DEBUG)
+        if not self.verbose:
+            # Remove console output.  The logging to the file is still on.
+            logger.handlers.clear()
+            logger.propagate = False
+        fh = logging.FileHandler("/tmp/diag_run.log", mode='w')
+        logger.addHandler(fh)
+        self.logger = logger
 
     def setup_top_node(self, top_node_name, node_file_path=""):
         top_empty_node = NodeDiag(
