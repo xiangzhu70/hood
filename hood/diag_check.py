@@ -57,7 +57,7 @@ class Check(Command):
         # The default is to check the dependent factors.
         return "DEP"
 
-    def triage(self, level=0, branch="", indent="  "):
+    def triage(self, level=0, branch="", indent="  ", remediate=False):
         session = self.node.session
 
         if level == 0:
@@ -128,6 +128,7 @@ class Check(Command):
                 level=level + 1,
                 branch=branch_next,
                 indent=indent + "  ",
+                remediate=remediate,
             )
             session.goto_obj(self.node.node_path)
             # If any prerequisite condition fails, then fail.
@@ -138,6 +139,13 @@ class Check(Command):
 
         # Now run own run()
         ret = self.run()
+
+        if ret != "OK" and remediate and hasattr(self, "remediate_cmd"):
+            print(f"{indent}{branch[-3:]} |-> {check_path} = {ret}")
+            print(f"{indent}  -- Remediate.  {self.remediate_cmd}") 
+            self.node.remote_run(self.remediate_cmd)
+            print(f"{indent}  -- Retry")
+            ret = self.run()
 
         session.triage_visited[check_path] = (branch, ret)
         print(f"{indent}{branch[-3:]} |-> {check_path} = {ret}")
@@ -156,6 +164,7 @@ class Check(Command):
                 level=level + 1,
                 branch=branch_next,
                 indent=indent + "  ",
+                remediate=remediate
             )
             if dep_ret != "OK":
                 dep_failure_found = True
@@ -453,7 +462,10 @@ class Check(Command):
             stop()
             self.decision_graph(visited={}, lines=[])
         elif arg_cmd == "triage" or arg_cmd == "check":
-            self.triage()
+            remediate = False
+            if len(cmd_args) and cmd_args[0].startswith("rem"):
+                remediate = True
+            self.triage(remediate=remediate)
         elif arg_cmd == "test":
             if cmd_args[0] == "triage":
                 if len(cmd_args) >= 2:
