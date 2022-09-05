@@ -11,10 +11,14 @@ class Command(DiagObj):
         self.node = context_node
         self.inst_name = inst_name
         self.sh_cmd = self.node.session.sh_cmd
+        self.logger = self.node.session.logger
         self.init()
 
     def init(self):
         pass
+
+    def log(self, log_message):
+        self.logger.info(log_message)
 
     def show(self):
         print(f"Command name = {self.inst_name}")
