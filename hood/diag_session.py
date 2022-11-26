@@ -13,6 +13,7 @@ from hood.diag_check import Check
 from hood.diag_node import NodeDiag
 from hood.diag_obj import DiagObjType, DiagObj
 from hood.diag_utils import parse_key_val_pairs, ShellCommand
+from hood.diag_state import DiagState
 
 verbose = False
 
@@ -28,6 +29,8 @@ class Session:
         import_path_prefix="",
         top_node_name=None,
         src_file_path_prefix="",
+        conf_file=None,
+        state_file_path="/tmp/diag_state",
         verbose=False
     ):
         self.session_id = Session.sessions_count
@@ -36,6 +39,8 @@ class Session:
         self.verbose = verbose
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
+
+        self.state = DiagState(conf_file, state_file_path)
 
         if not top_node_name:
             top_node_name = entry_obj_path.partition('.')[0]
