@@ -39,7 +39,7 @@ def group_str_parse(group_str):
     return (type_name, range_str, inst)
 
 
-def parse_key_val_pairs(args):
+def parse_key_val_pairs(args=None):
     if not args:
         return {}
     args_dict = {}
@@ -119,6 +119,7 @@ class NameStyle:
         underscore_str = re.sub(r"(?!^)([A-Z]+)", r"_\1", camel_str).lower()
         return underscore_str
 
+
 class ShellCommand:
     def __init__(self, logger):
         self.logger = logger
@@ -130,8 +131,8 @@ class ShellCommand:
 
         try:
             cmpl = subprocess.run(shlex.split(cmd),
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                timeout=timeout, shell=shell)
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  timeout=timeout, shell=shell)
             output = cmpl.stdout.decode().strip()
         except Exception as e:
             output = str(e)
@@ -150,8 +151,8 @@ class ShellCommand:
             # if shell==True, use the raw cmd as the calling param
         try:
             cmpl = subprocess.run(cmd_param,
-                #stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                timeout=timeout, shell=shell)
+                                  # stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  timeout=timeout, shell=shell)
             stdout = cmpl.stdout
             if isinstance(stdout, bytes):
                 output = stdout.decode().strip()
@@ -162,4 +163,3 @@ class ShellCommand:
         except Exception as e:
             output = str(e)
         return output
-

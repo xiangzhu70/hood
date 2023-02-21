@@ -10,6 +10,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 class DiagObjType(enum.Enum):
     Node = "node"
     Command = "cmd"
@@ -116,7 +117,7 @@ class DiagObj:
                         self.obj_type = expected_type
                         column_index = self.path.rindex(":")
                         pre = self.path[: column_index + 1]
-                        post = self.path[column_index + 1 :]
+                        post = self.path[column_index + 1:]
                         self.path = f"{pre}[{expected_type}]{post}"
             if not self.obj_type:
                 self.obj_type = "node"

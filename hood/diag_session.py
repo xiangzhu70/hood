@@ -2,18 +2,17 @@
 #
 #  A hierarchical OO diag framework to organize the information and tools
 
+from hood.diag_state import DiagState
+from hood.diag_utils import parse_key_val_pairs, ShellCommand
+from hood.diag_obj import DiagObjType, DiagObj
+from hood.diag_node import NodeDiag
+from hood.diag_check import Check
+from pdb import set_trace as stop
+import logging
+import sys
+import os
 diag_version = "0.0.0"
 
-import sys
-import logging
-
-from pdb import set_trace as stop
-
-from hood.diag_check import Check
-from hood.diag_node import NodeDiag
-from hood.diag_obj import DiagObjType, DiagObj
-from hood.diag_utils import parse_key_val_pairs, ShellCommand
-from hood.diag_state import DiagState
 
 verbose = False
 
@@ -24,42 +23,48 @@ class Session:
 
     def __init__(
         self,
-        entry_obj_path,
-        node_args_str,
-        import_path_prefix="",
-        top_node_name=None,
-        src_file_path_prefix="",
+        file_path,
+        node_args_str=None,
         conf_file=None,
         state_file_path="/tmp/diag_state",
-        verbose=False
+        verbose=False,
+        output_json=False,
     ):
         self.session_id = Session.sessions_count
         Session.sessions_count += 1
 
         self.verbose = verbose
+        self.output_json = output_json
+
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
 
         self.state = DiagState(conf_file, state_file_path)
 
-        if not top_node_name:
-            top_node_name = entry_obj_path.partition('.')[0]
-        self.top_node_name = top_node_name
-        self.src_file_path_prefix = src_file_path_prefix
+        dir_path, entry_obj_path = os.path.split(file_path)
+        self.top_node_name = entry_obj_path.partition('.')[0]
 
-        sys.path.append(src_file_path_prefix)
-
-        if import_path_prefix != "" and not import_path_prefix.endswith("."):
-            import_path_prefix += "."
-        self.import_path_prefix = import_path_prefix
+        self.src_file_path_prefix = dir_path
+        sys.path.append(dir_path)
+        self.import_path_prefix = ""
+        # TBD why do we need this?
+        # the dir_path is already in sys.path, so the import path should be
+        # relative to the the dir_path.  No need to prefix it.
 
         self.nodes_visited = {}
         self.mock_patchers = {}
 
-        self.node_args = parse_key_val_pairs(node_args_str)
+        if node_args_str:
+            print("Got node_args, should this still be supported?")
+            exit(-1)
+        # self.node_args = parse_key_val_pairs(node_args_str)
 
-        self.obj_path = DiagObj.Path(init_path=":", top_node_name=top_node_name)
-        self.setup_top_node(top_node_name, node_file_path=src_file_path_prefix)
+        self.obj_path = DiagObj.Path(
+            init_path=":", top_node_name=self.top_node_name)
+        # self.setup_top_node(self.top_node_name, node_file_path=dir_path)
+        # self.goto_obj(entry_obj_path)
+        self.setup_top_empty_node(
+            sub_node=self.top_node_name, node_file_path=dir_path)
         self.goto_obj(entry_obj_path)
 
     def setup_logging(self):
@@ -73,11 +78,11 @@ class Session:
         logger.addHandler(fh)
         self.logger = logger
 
-    def setup_top_node(self, top_node_name, node_file_path=""):
+    def setup_top_empty_node(self, sub_node, node_file_path=""):
         top_empty_node = NodeDiag(
             context_node=None, inst_name="top", node_file_path=node_file_path, import_path=""
         )
-        top_empty_node.subs.append(top_node_name)
+        top_empty_node.subs.append(sub_node)
         top_empty_node.session = self
         top_empty_node.import_path = ""
         self.curr_node = top_empty_node
@@ -85,6 +90,18 @@ class Session:
         self.top_node = top_empty_node
         self.nodes_visited[":"] = top_empty_node
         return top_empty_node
+
+    # def setup_and_goto_top_node(self, top_node_name, node_file_path=""):
+    #     top_node = NodeDiag(
+    #         context_node=None, inst_name=top_node_name, node_file_path=node_file_path, import_path=""
+    #     )
+    #     top_node.session = self
+    #     top_node.import_path = ""
+    #     self.curr_node = top_node
+    #     self.curr_obj = top_node
+    #     self.top_node = top_node
+    #     self.nodes_visited[":"] = top_node
+    #     return top_node
 
     def goto_obj(self, obj_path_str, obj_type=None):
         # shortcut case
@@ -135,5 +152,9 @@ class Session:
         self.curr_obj = curr_obj
         return curr_obj
 
+    # On the current node obj, run the command with the given args
+    # tree is the bool flag to indicate the command is on the tree mode
+    # only or all the nodes underneath.
+    # TBD - should this bool flag be specific, or should it be a here?
     def cli_cmd(self, arg_cmd, args, tree):
         return self.curr_obj.cli_cmd(arg_cmd, args, tree)

@@ -2,34 +2,34 @@
 #
 #  A hierarchical OO diag framework to organize the information and tools
 
-diag_version = "0.0.0"
-
-import argparse
-import re
-import os
-
-from hood.diag_session import Session
-
 from pdb import set_trace as stop
+from hood.diag_session import Session
+from hood.diag_cli import CmdShell
+import os
+import re
+import argparse
+diag_version = "0.0.0"
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description = "Unified Diag Framework.  Version {diag_version}",
-        formatter_class = argparse.RawTextHelpFormatter,
+        description="Unified Diag Framework.  Version {diag_version}",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("-p", "--path")
     parser.add_argument("-c", "--conf")
     parser.add_argument("--state_path")
-    parser.add_argument("node", help="node path")
+    parser.add_argument("node", help="[file_path/]node_path")
     parser.add_argument("-n", "--node_args", nargs='*',
-        help="args to pass to node\n"
-        "any number of <key>=<value> pairs terminated by -x\n",
-    )
-    parser.add_argument("-x", help="dummpy to terminate node_args", action="store_true")
+                        help="args to pass to node when entering the node\n"
+                        "any number of <key>=<value> pairs terminated by -x\n",
+                        )
+    parser.add_argument(
+        "-x", help="dummpy to terminate node_args", action="store_true")
     parser.add_argument("-t", "--tree", type=int, const=-1, nargs="?", help="")
+    parser.add_argument(
+        "-j", "--json", action="store_true", help="output json")
 
     parser.add_argument(
         "command",
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        #'-c', '--cmd_args',
+        # '-c', '--cmd_args',
         "cmd_args",
         help="command arguments\n" "any number of <key>=<value> pairs",
         nargs="*",
@@ -54,15 +54,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.path:
-        src_file_path_prefix = os.path.abspath(os.path.expanduser(args.path))
+    node_file_path = os.path.abspath(os.path.expanduser(args.node))
+
+    session = Session(node_file_path, args.node_args,
+                      conf_file=args.conf,
+                      state_file_path=args.state_path,
+                      verbose=args.verbose,
+                      output_json=args.json)
+
+    if args.command == "shell":
+        cmd_shell = CmdShell(session)
+        cmd_shell.cmdloop()
     else:
-        src_file_path_prefix = os.getcwd()
-    session = Session(args.node, args.node_args,
-        src_file_path_prefix=src_file_path_prefix,
-        conf_file = args.conf,
-        state_file_path = args.state_path,
-        verbose=args.verbose)
-
-    session.cli_cmd(args.command, args.cmd_args, args.tree)
-
+        session.cli_cmd(args.command, args.cmd_args, args.tree)

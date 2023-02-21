@@ -1,0 +1,57 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "web server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/hood_frontend/build",
+                "~/proj/solana_diag/solana",
+            ]
+        },
+        {
+            "name": "diag cli",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/solana_diag/solana",
+                "show",
+            ]
+        },
+        {
+            "name": "diag shell",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/solana_diag/solana",
+                "shell",
+            ]
+        },
+        {
+            "name": "diag json",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-j",
+                "~/proj/solana_diag/solana",
+                "shell",
+            ]
+        }
+    ]
+}

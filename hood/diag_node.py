@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import re
 import textwrap
 from collections import deque
 from pdb import set_trace as stop
@@ -78,7 +77,8 @@ class FindCheckDepPlugin(TraverseTreePlugin):
                 for cond in check.ok_necessary_conditions:
                     session.goto_obj(node.node_path)
                     (cond_check, cond_status) = Check.cond_parse(cond)
-                    session.obj_path.move(cond_check, obj_type=DiagObjType.Check)
+                    session.obj_path.move(
+                        cond_check, obj_type=DiagObjType.Check)
                     self.add_into_dict(
                         cause=session.obj_path.path, consequence=check_path
                     )
@@ -184,7 +184,8 @@ class NodeDiag(DiagObj):
                 continue
             import_path = f"{self.import_path}.{obj_type.name.lower()}s"
             import_path = f"{self.session.import_path_prefix}{import_path}"
-            obj_class_names = DiagObj.module_get_obj_class_names(import_path, obj_type)
+            obj_class_names = DiagObj.module_get_obj_class_names(
+                import_path, obj_type)
             for (class_name, obj_name) in obj_class_names:
                 if class_name in map_class_to_obj_names:
                     # The auto-discovered class is already statically declared
@@ -308,8 +309,11 @@ class NodeDiag(DiagObj):
         expand_group=False,
     ):
         indent += "|--"
+        tree_dict = {}
         if show_node:
             print(f"{indent}{self.inst_name}")
+        tree_dict["name"] = self.inst_name
+        tree_dict["children"] = []
         if plugin:
             plugin.run_at_node(node=self, indent=indent)
         if tree_level_max != -1:
@@ -318,13 +322,14 @@ class NodeDiag(DiagObj):
         for sub in self.subs:
             if not expand_group or (sub not in self.sub_groups):
                 sub_node = self.enter_sub_node(sub)
-                sub_node.traverse_tree(
+                child_dict = sub_node.traverse_tree(
                     tree_level=tree_level + 1,
                     tree_level_max=tree_level_max,
                     plugin=plugin,
                     indent=indent,
                     show_node=show_node,
                 )
+                tree_dict["children"].append(child_dict)
             else:
                 sub_type, range_str = self.sub_groups[sub]
                 instances = Instances(sub_type, range_str, context=self)
@@ -340,6 +345,8 @@ class NodeDiag(DiagObj):
 
         if tree_level == 0:
             self.session.goto_obj(self.node_path)
+
+        return tree_dict
 
     def find_attr(self, attr, show_node=False, show=False):
         plugin = FindAttr(attr, show=show)
@@ -375,16 +382,18 @@ class NodeDiag(DiagObj):
             plugin = None
         else:
             plugin = FindAttr(show_type, show=attr_show, attr_run=attr_run)
-        self.traverse_tree(
+        tree_dict = self.traverse_tree(
             0, plugin=plugin, show_node=True, tree_level_max=tree_level_max
         )
+
+        return tree_dict
 
     def check_obj_file_exists(self, obj_type):
         map_obj_type_to_file = {
             DiagObjType.Check: "checks.py",
             DiagObjType.Command: "commands.py",
             # need to search in sub directories. a different work flow.
-            #DiagObjType.Node: "node_diag.py",
+            # DiagObjType.Node: "node_diag.py",
         }
         if obj_type not in map_obj_type_to_file:
             raise Exception("unknown obj_type")
@@ -402,7 +411,8 @@ class NodeDiag(DiagObj):
         if obj_name in map_obj_name_to_class:
             obj_class_name = map_obj_name_to_class[obj_name]
         if not obj_class_name:
-            obj_class_name = class_type.name + NameStyle.underscore_to_camel(obj_name)
+            obj_class_name = class_type.name + \
+                NameStyle.underscore_to_camel(obj_name)
         return obj_class_name
 
     def __getattr__(self, attr_name):
@@ -410,13 +420,16 @@ class NodeDiag(DiagObj):
             return None
         if attr_name not in self.obj_names_dict:
             # if not attr_name.startswith("map_"):
-            print(f"attr_name <{attr_name}> not in obj_names_dict")
-            stop()
+            print(
+                f"attr_name <{attr_name}> not in {self.inst_name} obj_names_dict")
+            # stop()
             raise AttributeError
         obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
         if not obj:
             print("failed to set up <{attr_name}> obj")
             raise AttributeError
+        # TBD looks hacky, should be removed?
+        print(f"xxx set up <{attr_name}> for <{self.inst_name}>")
         setattr(self, attr_name, obj)
         return obj
 
@@ -482,7 +495,8 @@ class NodeDiag(DiagObj):
             import_path=sub_node_import_path,
         )
         if not class_obj:
-            raise Exception(f"{class_type.name} {obj_name} obj not constructed")
+            raise Exception(
+                f"{class_type.name} {obj_name} obj not constructed")
         objs_dict[inst_name] = class_obj
         return class_obj
 
@@ -614,12 +628,13 @@ class NodeDiag(DiagObj):
         ret = None
         if arg_cmd == "show":
             if tree:
-                tree_level_max = tree
-                if len(cmd_args):
+                tree_level_max = -1  # show all levels
+                if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
                     show_type = cmd_args[0]
                 else:
                     show_type = "node"
-                self.show_tree(show_type=show_type, tree_level_max=tree_level_max)
+                return self.show_tree(show_type=show_type,
+                                      tree_level_max=tree_level_max)
             else:
                 self.show(cmd_args)
         elif arg_cmd == "run":
@@ -641,7 +656,8 @@ class NodeDiag(DiagObj):
 
         elif arg_cmd == "add":
             if len(cmd_args) < 2:
-                raise Exception("Expecting input add [cmd|check|sub] <obj_name>")
+                raise Exception(
+                    "Expecting input add [cmd|check|sub] <obj_name>")
             obj_type = cmd_args[0]
             if obj_type == "sub":
                 obj_type = "node"
