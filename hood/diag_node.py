@@ -313,6 +313,7 @@ class NodeDiag(DiagObj):
         if show_node:
             print(f"{indent}{self.inst_name}")
         tree_dict["name"] = self.inst_name
+        tree_dict["node_path"] = self.node_path
         tree_dict["children"] = []
         if plugin:
             plugin.run_at_node(node=self, indent=indent)
