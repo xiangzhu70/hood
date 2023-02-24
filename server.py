@@ -37,11 +37,11 @@ parser.add_argument("node_file_path", help="node file path")
 args = parser.parse_args()
 
 frontend_path = os.path.abspath(os.path.expanduser(args.front_path))
-node_path = os.path.abspath(os.path.expanduser(args.node_file_path))
+node_file_path = os.path.abspath(os.path.expanduser(args.node_file_path))
 
 cwd = os.getcwd()
 
-session = Session(args.node_file_path,
+session = Session(node_file_path,
                   verbose=args.verbose)
 
 
