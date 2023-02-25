@@ -44,7 +44,7 @@ class HierNode:
                 f.write("from hood.diag_node import NodeDiag\n\n")
                 f.write(f"class Node{class_name}(NodeDiag):\n\n")
                 f.write(f"    def init(self):\n")
-                subs_line = "       self.subs = ["
+                subs_line = "        self.subs = ["
                 for sub in self.sub_nodes:
                     subs_line += f"\"{sub.node_name}{sub.range_str}\", "
                 subs_line += "]"
@@ -82,7 +82,7 @@ class HierNode:
         if not found:
             with open(file_name, "a") as f:
                 f.write(f"\nclass Check{class_name}(Check):\n\n")
-                f.write(f"    def run(self, cmd_args):\n")
+                f.write(f"    def run(self, cmd_args=None):\n")
                 f.write(f"        pass\n")
 
     def add_command(self, command):
@@ -103,7 +103,7 @@ class HierNode:
         if not found:
             with open(file_name, "a") as f:
                 f.write(f"\nclass Command{class_name}(Command):\n\n")
-                f.write(f"    def run(self, cmd_args):\n")
+                f.write(f"    def run(self, cmd_args=None):\n")
                 f.write(f"        pass\n")
 
 
@@ -140,7 +140,7 @@ class Hier:
                 line_idx += 1
                 continue
 
-            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>\S+)\] )?(?P<entry_name>\S+)"
+            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>\S+)\])?(?P<entry_name>\S+)"
             m = re.match(pattern, line)
             line_idx += 1
 

@@ -52,6 +52,18 @@
                 "~/proj/solana_diag/solana",
                 "shell",
             ]
-        }
+        },
+        {
+            "name": "hier_build",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/hood/hier_build.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/data_center_sim/hier.txt",
+                "~/proj/data_center_sim",
+            ]
+        },
     ]
 }
