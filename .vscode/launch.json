@@ -36,7 +36,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "~/proj/solana_diag/solana",
+                "~/proj/data_center_sim/data_center",
                 "shell",
             ]
         },

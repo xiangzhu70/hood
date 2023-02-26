@@ -19,30 +19,58 @@ class DiagObjType(enum.Enum):
 
 class DiagObj:
 
-    # A target is a sub node, a check, or a command.
-    # The TargetPath is the path in the hierarchy + the target name
+    # A DiagObj is a sub node, a check, or a command.
+    # The Path is the path in the hierarchy + the obj name
     # The format is <path_head><node>.<node>...<node>:[<type>]<name>
     # path_head can be
     #  : for top,
     #  . for current,
     #  .. for parent, or ../..   for grand parents
+    #
+    #  TBD ? change to ..3 for 3rd parent, so ..3.node1 is the same as ../../../node1
 
-    # parsing output:
-    #  relative path <node>.<node>...
-    #  if top=True, relative from top
-    #  else relative from current after going up to parent_count level
+    # node name does not contain "." or ":", cannot be pure number
+    # |--node1
+    # |  |--node2
+    # |  |  |--node3
+    # |  |  |  |--node4
+    # |  |--node5
+
+    # absolute path: :node1.node2.node3.node4
+    # relative path from node3 to node4: .node4
+    # relative path from node3 to itself: .
+    # relative path from node3 to node2: ..
+    # relative path from node3 to node1: ../.. ..2
+    # relative path from node3 to node5: ..3.node5
+    # .<node> goes to the sub node
+    # ..<node> goes up 1 level and go to the sub node,
+    # ..2.<node> goes up 2 levels and go to the sub node,
+
+    # output:
+
+    class PathMoveAction:
+        def __init__(self,
+                     #  if True, relative from top
+                     #  else relative from current after going up to parent_count level
+                     is_top,
+                     #  the number of levels to go up
+                     parent_count,
+                     # the sub node path with the preceeding "." and ":" stripped
+                     sub_node_path):
+            self.is_top = is_top
+            self.parent_count = parent_count
+            self.sub_node_path = sub_node_path
 
     class Path:
         def __init__(self, init_path, top_node_name):
             self.top_node_name = top_node_name
             self.path = init_path
 
-        # update absolute path, and return actions in the following set
-        # (top, parent_count, sub_node_path)
+        # update this path object, and return the move action
         # The caller should go to top if top==True
         # Otherwise, it goes up parents by parents_count, and go to
         # sub_node_path.
-        def move(self, obj_path: str, obj_type=None):
+        def move_path(self, obj_path: str, obj_type=None):
             parents_count = 0  # current
             top = False
             sub_node_path = ""
@@ -57,10 +85,11 @@ class DiagObj:
                 top = True
                 # remove ":"
                 obj_path = obj_path[1:]
-                if not obj_path:
+                if not obj_path:  # was ":", fill top_node_name
                     obj_path = top_node_name
                 elif not obj_path.startswith(top_node_name):
                     # instert top_node_name
+                    # was ":<obj>", this is the 2nd ":"
                     if obj_path.startswith(":"):
                         obj_path = top_node_name + obj_path
                     else:
@@ -74,6 +103,7 @@ class DiagObj:
             elif obj_path.startswith("."):
                 obj_path = obj_path[1:]
             tmp_parents_count = parents_count
+
             if top:
                 self.path = ":" + obj_path
             else:
@@ -88,12 +118,14 @@ class DiagObj:
                         self.path = curr_path + obj_path
                 else:
                     self.path = curr_path
-            if obj_path.endswith(":") and obj_type == DiagObjType.Check:
-                obj_path += "[check]overall"
-                self.path += "[check]overall"
 
-            if not obj_path:
-                return (top, parents_count, sub_node_path)
+            # in the dependency spec context, skip "[check]".
+            # "node...node:" means "node...node:[check]overall"
+            # "node...node:<check>" means "node...node:[check]<check>"
+            if obj_type == DiagObjType.Check:
+                obj_path.replace(":", ":[check]")
+            if obj_path.endswith(":[check]"):
+                obj_path += "overall"
 
             m = re.match(
                 r"^(?P<node_path>[^: ]*)(:(\[(?P<type>\S+)\])?(?P<name>\w*))?", obj_path
@@ -105,7 +137,7 @@ class DiagObj:
             sub_node_path = m.group("node_path")
             self.obj_type = m.group("type")
             self.obj_name = m.group("name")
-            if self.obj_name:
+            if self.obj_name:  # so it is an attached_obj, not the node itself
                 if obj_type:  # explicitly provided by the caller
                     expected_type = obj_type.value.lower()
                     if self.obj_type:
@@ -122,7 +154,7 @@ class DiagObj:
             if not self.obj_type:
                 self.obj_type = "node"
 
-            return (top, parents_count, sub_node_path)
+            return DiagObj.PathMoveAction(top, parents_count, sub_node_path)
 
     @staticmethod
     def construct_obj(

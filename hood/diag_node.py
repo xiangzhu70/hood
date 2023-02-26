@@ -483,6 +483,8 @@ class NodeDiag(DiagObj):
         if not inst_name:
             inst_name = obj_name
         if self.inst_name != "top" and obj_name not in self.obj_names_dict:
+            print(
+                f"obj_name <{obj_name}> not in {self.inst_name} obj_names_dict")
             stop()
             raise AttributeError
 

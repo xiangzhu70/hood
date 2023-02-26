@@ -115,9 +115,12 @@ class Session:
             if class_type in [DiagObjType.Check, DiagObjType.Command]:
                 obj_path_str = f".:[{class_type.value}]{obj_path_str}"
 
-        (top, parent_count, sub_node_path) = self.obj_path.move(
+        move_action = self.obj_path.move_path(
             obj_path_str, obj_type=obj_type
         )
+        (top, parent_count, sub_node_path) = (move_action.is_top,
+                                              move_action.parent_count, move_action.sub_node_path)
+
         obj_type = self.obj_path.obj_type
         obj_name = self.obj_path.obj_name
         if self.obj_path.path != self.curr_node.node_path:
@@ -129,12 +132,19 @@ class Session:
                     curr = curr.node_parent
                     parent_count -= 1
             while sub_node_path:
-                fields = sub_node_path.split(".", maxsplit=1)
-                sub = fields[0]
-                if len(fields) >= 2:
-                    sub_node_path = fields[1]  # remaining node path
-                else:
-                    sub_node_path = ""
+                find_start_pos = 0
+                while True:
+                    idx = sub_node_path.find(".", find_start_pos)
+                    if idx == -1:
+                        sub = sub_node_path
+                        sub_node_path = ""
+                        break
+                    elif sub_node_path[idx+1] != ".":
+                        sub = sub_node_path[:idx]
+                        sub_node_path = sub_node_path[idx + 1:]
+                        break
+                    find_start_pos = idx + 2
+
                 curr = curr.enter_sub_node(sub)
             self.curr_node = curr
 

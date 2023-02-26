@@ -8,6 +8,8 @@ import shlex
 
 from pdb import set_trace as stop
 
+# ("pim[1..8]") should return ("pim", "1..8", [1..8])
+
 
 def group_str_parse(group_str):
     type_name = None
@@ -36,6 +38,7 @@ def group_str_parse(group_str):
             # idx_end = int(m.group("idx_end"))
             # this range_str is ok, do nothing
             pass
+        inst = f"[{range_str}]"  # this is the group instance
     return (type_name, range_str, inst)
 
 
