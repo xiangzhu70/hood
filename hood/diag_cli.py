@@ -5,14 +5,20 @@ import cmd2
 
 from .diag_session import Session
 
-# For now, directly call session.cli_cmd()
-# Not sure if it is better to make use of cmd2's argparser.
-# from cmd2 import Cmd2ArgumentParser, with_argparser
-# argparser = Cmd2ArgumentParser()
+
+from cmd2 import Cmd2ArgumentParser, with_argparser
+cmd_argparser = Cmd2ArgumentParser()
+cmd_argparser.add_argument("cmd", help="command to run")
+cmd_argparser.add_argument("-d", "--depth", type=int, help="tree depth")
+cmd_argparser.add_argument("args", nargs="*", help="command args")
 
 
 class CmdShell(cmd2.Cmd):
-    def __init__(self, session):
+    def __init__(self, node_file_path, node_args,
+                 conf_file,
+                 state_file_path,
+                 verbose,
+                 output_json):
         super().__init__(allow_cli_args=False)
         self.allow_cli_args = False
         self.hidden_commands += [
@@ -27,44 +33,34 @@ class CmdShell(cmd2.Cmd):
             "run_pyscript",
             "run_script",
         ]
-        self.session = session
+
+        self.session = Session(node_file_path, node_args,
+                               conf_file,
+                               state_file_path,
+                               verbose,
+                               output_json)
+
         self._set_prompt()
 
     def _set_prompt(self):
-        # host = self.session.node_args["host"]
-        # self.prompt = f"{host} {self.session.obj_path.path}> "
         self.prompt = f"{self.session.obj_path.path}> "
 
     def postcmd(self, stop: bool, line: str) -> bool:
         self._set_prompt()
         return stop
 
-    def help_show(self):
-        curr_obj = self.session.curr_obj
-        curr_obj.help_show()
-
     def do_show(self, args):
         """
         Show node, command, or check context-specific info.
         """
-        curr_obj = self.session.curr_obj
-        curr_obj.cli_cmd("show", args.arg_list)
+        self.cmd_output = self.session.cli_cmd("show", args)
 
-    #  At the node level, there is show -t doing the same thing as ls -t.
-    # def do_ls(self, args):
-    #     """
-    #     list nodes
-    #     """
-    #     node = self.session.curr_node
-    #     if len(args.arg_list):
-    #         if args.arg_list[0] == "-t":
-    #             node.traverse_tree(show_node=True)
-    #         return
-    #     if len(node.subs):
-    #         for sub in node.subs:
-    #             print(f"  .{sub}")
-    #     else:
-    #         print("No sub node here")
+    def do_tree(self, args):
+        """
+        Show node tree
+        """
+        print("args = " + args)
+        self.cmd_output = self.session.cli_cmd("tree", args)
 
     def do_cd(self, args):
         """
@@ -77,10 +73,8 @@ class CmdShell(cmd2.Cmd):
         dest = args.arg_list[0]
         self.session.goto_obj(dest)
 
-    # @with_argparser(argparser)
-    # def do_runcmd(self, opts):
-
     # This is for testing the cmd received from the web server.
+    @with_argparser(cmd_argparser)
     def do_cmd(self, args):
         """
         Run a command on the current node
@@ -88,8 +82,9 @@ class CmdShell(cmd2.Cmd):
         print(f"cmd: {args}")
 
         # web server also calls session.cli_cmd() this way
-        tree = "-t" in args.arg_list
-        self.session.cli_cmd(args.arg_list[0], args.arg_list[1:], tree=tree)
+
+        self.output_dict = self.session.cli_cmd(
+            args.cmd, args.args, tree=args.depth)
 
 
 class CliNameSpace:

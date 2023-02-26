@@ -3,7 +3,6 @@
 #  A hierarchical OO diag framework to organize the information and tools
 
 from pdb import set_trace as stop
-from hood.diag_session import Session
 from hood.diag_cli import CmdShell
 import os
 import re
@@ -33,14 +32,17 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "command",
-        help="[shell|check|show] -- global commands\n"
+        help="[shell|check|show][s] -- global commands\n"
         "shell -- Enter a command shell at the node\n"
         "check -- Run check functions\n"
-        "show [sub|commands|locals|checks]\n"
+        "show [sub|commands|props|checks]\n"
+        "     show node details, optionally show the specified object types only\n"
+        "tree [sub|commands|props|checks]\n"
+        "      show the tree, optionally show the objects attached'\n"
         "      sub -- show sub systems. the default\n"
         "      commands -- show commands at this node\n"
         "      cmd, cmds -- alias to commands\n"
-        "      locals -- local variables at this node\n"
+        "      prop -- property variables at this node\n"
         "      checks -- checks at this node\n"
         "<node-specific commands>, as listed by 'show cmds'\n",
     )
@@ -56,14 +58,19 @@ if __name__ == "__main__":
 
     node_file_path = os.path.abspath(os.path.expanduser(args.node))
 
-    session = Session(node_file_path, args.node_args,
-                      conf_file=args.conf,
-                      state_file_path=args.state_path,
-                      verbose=args.verbose,
-                      output_json=args.json)
+    cmd_shell = CmdShell(node_file_path, args.node_args,
+                         conf_file=args.conf,
+                         state_file_path=args.state_path,
+                         verbose=args.verbose,
+                         output_json=args.json)
 
     if args.command == "shell":
-        cmd_shell = CmdShell(session)
         cmd_shell.cmdloop()
     else:
-        session.cli_cmd(args.command, args.cmd_args, args.tree)
+        if args.tree:
+            tree_arg = "-d " + str(args.tree)
+        else:
+            tree_arg = ""
+        cmd = "cmd " + args.command + " " + \
+            tree_arg + " " + " ".join(args.cmd_args)
+        cmd_shell.onecmd(cmd)

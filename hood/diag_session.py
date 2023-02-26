@@ -156,5 +156,5 @@ class Session:
     # tree is the bool flag to indicate the command is on the tree mode
     # only or all the nodes underneath.
     # TBD - should this bool flag be specific, or should it be a here?
-    def cli_cmd(self, arg_cmd, args, tree):
+    def cli_cmd(self, arg_cmd, args, tree=-1):
         return self.curr_obj.cli_cmd(arg_cmd, args, tree)

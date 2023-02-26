@@ -261,6 +261,7 @@ class NodeDiag(DiagObj):
         return sub_obj
 
     def show_summary(self):
+        show_dict = {}
         print(f"class name: {type(self).__name__}")
         print(f"inst_name: {self.inst_name}")
         print(f"node_path: {self.node_path}")
@@ -270,6 +271,11 @@ class NodeDiag(DiagObj):
         self.show_subs()
         self.show_cmds()
         self.show_checks()
+        show_dict["inst_name"] = self.inst_name
+        show_dict["node_path"] = self.node_path
+        show_dict["cmds"] = self.cmds
+        show_dict["checks"] = self.checks
+        return show_dict
 
     def show_subs(self):
         print("--Sub nodes:")
@@ -289,15 +295,14 @@ class NodeDiag(DiagObj):
     def show(self, cmd_args):
         # print(cmd_args)
         if not len(cmd_args):
-            self.show_summary()
-            return
+            return self.show_summary()
 
         else:
             print(cmd_args)
             if (cmd_args[0]) == "check":
-                self.show_checks()
+                return self.show_checks()
             elif (cmd_args[0]) == "cmd":
-                self.show_cmds()
+                return self.show_cmds()
 
     def traverse_tree(
         self,
@@ -355,6 +360,9 @@ class NodeDiag(DiagObj):
         return plugin.found
 
     def show_tree(self, show_type=None, tree_level_max=-1):
+        if not tree_level_max:
+            tree_level_max = -1
+
         def attr_check_run(node, check_name, indent):
             if check_name == "overall":
                 check_name_show = ""
@@ -609,8 +617,10 @@ class NodeDiag(DiagObj):
                 class {class_name}({type_name}):
                     def run(self, cmd_args):
                         print(f"--> Entering {{self.check_path}} run()")
-                        print("    ** file path: {self.session.src_file_path_prefix}{node_file_path}/{file_name}")
-                        print("    ** This is a stub.  Add the real implementation here")
+                        print(
+                            "    ** file path: {self.session.src_file_path_prefix}{node_file_path}/{file_name}")
+                        print(
+                            "    ** This is a stub.  Add the real implementation here")
                         {return_stmt[obj_type]}
             """
             )
@@ -625,24 +635,21 @@ class NodeDiag(DiagObj):
     def cli_get_cmds(self):
         return ["show", "run", "find"]
 
-    def cli_cmd(self, arg_cmd, cmd_args, tree=False):
+    def cli_cmd(self, arg_cmd, cmd_args, tree_depth=-1):
         ret = None
         if arg_cmd == "show":
-            if tree:
-                tree_level_max = -1  # show all levels
-                if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
-                    show_type = cmd_args[0]
-                else:
-                    show_type = "node"
-                return self.show_tree(show_type=show_type,
-                                      tree_level_max=tree_level_max)
+            return self.show(cmd_args)
+        elif arg_cmd == "tree":
+            if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
+                show_type = cmd_args[0]
             else:
-                self.show(cmd_args)
+                show_type = "node"
+            return self.show_tree(show_type=show_type,
+                                  tree_level_max=tree_depth)
         elif arg_cmd == "run":
             obj_type = cmd_args[1]
             obj_name = cmd_args[2]
             if obj_type == "check":
-                stop()
                 ret = self.run_check(obj_name)
                 print("ret = {ret}")
             elif obj_type == "cmd":

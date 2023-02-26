@@ -41,6 +41,20 @@
             ]
         },
         {
+            "name": "diag onecmd",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/data_center_sim/data_center",
+                "tree",
+                //    "-t",
+                //    "4",
+            ]
+        },
+        {
             "name": "diag json",
             "type": "python",
             "request": "launch",

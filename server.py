@@ -10,7 +10,7 @@ import argparse
 import re
 import os
 
-from hood.diag_session import Session
+from hood.diag_cli import CmdShell
 
 hood_version = "0.0.0"
 
@@ -41,12 +41,12 @@ node_file_path = os.path.abspath(os.path.expanduser(args.node_file_path))
 
 cwd = os.getcwd()
 
-session = Session(node_file_path,
-                  verbose=args.verbose)
+cmd_shell = CmdShell(node_file_path, None, None, None,
+                     False, True)
 
 
 # the web command count
-session.cmd_count = 0
+cmd_shell.cmd_count = 0
 
 # hood changes the cwd.  change it back to allow flask to run
 os.chdir(cwd)
@@ -67,61 +67,39 @@ def home(path):
     print(f"ret = {ret}")
     return ret
 
-    node_tree = """
-    {
-		label: 'USA',
-		children: [
-			{
-				label: 'Florida',
-				children: [
-					{ label: 'Jacksonville' },
-					{
-						label: 'Orlando',
-						children: [
-							{ label: 'Disney World' },
-							{ label: 'Universal Studio' },
-							{ label: 'Sea World' }
-						]
-					},
-					{ label: 'Miami' }
-				]
-			},
-			{
-				label: 'California',
-				children: [{ label: 'San Francisco' }, { label: 'Los Angeles' }, { label: 'Sacramento' }]
-			}
-		]
-	};
-    """
-
 
 @app.route("/cmd", methods=["GET", "POST"])
 def cli_cmd():
 
+    lock.acquire()  # ugly lock, will clean up later. TBD
     print(f"route cmd <{request.data}>")
-    ret_json = {
-        "label": f"default label, not filled by the cmd",
-        "children": []}
-
+    ret_json = {}
     try:
+
         print(request)
         data_str = request.data.decode('utf-8')
         data = json.loads(data_str)
-        cmd_str = data["cmd"]
-        print(f"cmd_str = <{cmd_str}>")
-        output_dict = {"cmd": cmd_str}
-        if cmd_str:
-            lock.acquire()  # ugly lock, will clean up later. TBD
-            session.cmd_count += 1
-            f.write(f"== cmd {session.cmd_count}: {cmd_str}\n")
+        request_cmd_str = data["cmd"]
+        print(f"request_cmd_str = <{request_cmd_str}>")
+        output_dict = {}
+        m = re.match(
+            r"^(?P<obj_path>\S+)?\s+cmd\s+(?P<cmd_str>.*)$", request_cmd_str)
+        if m:
+            obj_path = m.group("obj_path")
+            cmd_str = m.group("cmd_str")
+            print(f"obj_path = <{obj_path}>")
+            print(f"cmd_str = <{cmd_str}>")
 
-            words = cmd_str.split()
-            tree = "-t" in words
-            output_dict = session.cli_cmd(words[0], words[1:], tree=tree)
-            lock.release()
-            print(f"cmd output_dict {output_dict}")
+            cmd_shell.cmd_count += 1
+            f.write(f"== cmd {cmd_shell.cmd_count}: {cmd_str}\n")
+            if obj_path:
+                cmd_shell.onecmd("cd " + obj_path)
+            cmd_shell.onecmd("cmd " + cmd_str)
+            output_dict = cmd_shell.output_dict
+
+            # print(f"cmd output_dict {output_dict}")
         ret_json = jsonify(output_dict)
-        print(f"ret_json: {ret_json}")
+        # print(f"ret_json: {ret_json}")
         f.write(f"--ret_json: {ret_json}\n")
         f.flush()
 
@@ -131,6 +109,7 @@ def cli_cmd():
     response.headers["Content-Type"] = "application/json"
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.status_code = 200
+    lock.release()
 
     return ret_json
 
