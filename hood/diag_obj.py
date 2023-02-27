@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class DiagObjType(enum.Enum):
     Node = "node"
+    Property = "prop"
     Command = "cmd"
     Check = "check"
 

@@ -133,6 +133,8 @@ class NodeDiag(DiagObj):
 
         # the sub nodes
         self.subs = []
+        # the properties
+        self.props = []
         # commands here do not implicitly inherit.
         self.cmds = []
         # the diag checks
@@ -213,6 +215,8 @@ class NodeDiag(DiagObj):
             if range_str:
                 self.sub_groups[sub_type_name] = range_str
             self.obj_names_dict[sub_type_name] = DiagObjType.Node
+        for prop_name in self.props:
+            self.obj_names_dict[prop_name] = DiagObjType.Property
         for cmd_name in self.cmds:
             self.obj_names_dict[cmd_name] = DiagObjType.Command
         for check_name in self.checks:
@@ -273,6 +277,7 @@ class NodeDiag(DiagObj):
         self.show_checks()
         show_dict["inst_name"] = self.inst_name
         show_dict["node_path"] = self.node_path
+        show_dict["props"] = self.props
         show_dict["cmds"] = self.cmds
         show_dict["checks"] = self.checks
         return show_dict
@@ -281,6 +286,11 @@ class NodeDiag(DiagObj):
         print("--Sub nodes:")
         for sub in self.subs:
             print(sub)
+
+    def show_props(self):
+        print("--Properties")
+        for prop in self.props:
+            print(f"  {prop}")
 
     def show_checks(self):
         print("--Checks")
