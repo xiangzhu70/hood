@@ -140,7 +140,7 @@ class Hier:
                 line_idx += 1
                 continue
 
-            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>\S+)\])?(?P<entry_name>\S+)"
+            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>\S+)\])?(?P<entry_name>\S+)?"
             m = re.match(pattern, line)
             line_idx += 1
 
@@ -155,8 +155,14 @@ class Hier:
             entry_name = m.group("entry_name")
             if entry_type:
                 if len_marks != 3 * (level + 1):
-                    raise Exception("invalid format")
+                    print(f"line is <{line}>")
+                    print(
+                        f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
+                    raise Exception(
+                        f"At level {level } there should be {level+1} indent marks, found {len_marks}")
                 if entry_type == "chk" or entry_type == "check":
+                    if entry_name == None:
+                        entry_name = "over_all"
                     prev_sibling_node.add_check(entry_name)
                 elif entry_type == "cmd":
                     prev_sibling_node.add_command(entry_name)
@@ -164,7 +170,12 @@ class Hier:
 
             # the entry is a node
             node_name = entry_name
-            node = HierNode(node_name)
+            try:
+                node = HierNode(node_name)
+            except Exception as e:
+                print(f"line {line_idx}, failed to init node {node_name}")
+                print(e)
+                exit(-1)
 
             if len_marks == 3 * level:
                 node_curr.add_sub_node(node)
