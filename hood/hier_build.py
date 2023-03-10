@@ -50,11 +50,33 @@ class Check:
         self.pre_list = []
         self.dep_list = []
         for child_entry in entry.children:
-            pass
+            if child_entry.type == "pre":
+                self.pre_list.append(child_entry.name)
+            elif child_entry.type == "dep":
+                self.dep_list.append(child_entry.name)
 
     def write_class_to_file(self, f):
         class_name = underscrore_to_camel(self.name)
         f.write(f"\nclass Check{class_name}(Check):\n\n")
+
+        num_pres = len(self.pre_list)
+        num_deps = len(self.dep_list)
+
+        if num_pres or num_deps:
+            f.write("    def init(self):\n")
+            if num_pres:
+                f.write("        self.pres = [\n")
+                for pre in self.pre_list:
+                    f.write(f'            "{pre}",\n')
+                f.write("            ]\n")
+            if num_deps:
+                f.write("        self.deps = [\n")
+                for dep in self.dep_list:
+                    f.write(f'            "{dep}",\n')
+                f.write("            ]\n")
+
+            f.write("\n")
+
         f.write(f"    def run(self, cmd_args=None):\n")
         f.write(f"        pass\n")
 
