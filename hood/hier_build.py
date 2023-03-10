@@ -1,44 +1,115 @@
 #!/usr/bin/env python3
 
+# Build the hierarchy code from a hierachy map text file
 import re
 import os
 import argparse
 
 from pdb import set_trace as stop
 
+# util functions
+def underscrore_to_camel(node_name):
+    fragments = node_name.split("_")
+    fragments_upper = [(frag[0]).upper() + frag[1:] for frag in fragments]
+    joined = "".join(fragments_upper)
+    return joined
+
+class Entry:
+
+    def __init__(self, type, name, parent):
+        self.type = type
+        self.name = name
+        self.parent = parent # parent entry at higher level
+        self.children = []
+        if parent:
+            parent.children.append(self)
+
+class Prop:
+    def __init__(self, entry, node):
+        self.entry = entry
+        self.node = node
+        self.name = entry.name
+
+class Command:
+    def __init__(self, entry, node):
+        self.entry = entry
+        self.node = node
+        self.name = entry.name
+
+    def write_class_to_file(self, f):
+        class_name = underscrore_to_camel(self.name)
+        f.write(f"\nclass Command{class_name}(Command):\n\n")
+        f.write(f"    def run(self, cmd_args=None):\n")
+        f.write(f"        pass\n")
+        
+class Check:
+    def __init__(self, entry, node):
+        self.entry = entry
+        self.node = node
+        self.name = entry.name
+        self.pre_list = []
+        self.dep_list = []
+        for child_entry in entry.children:
+            pass
+
+    def write_class_to_file(self, f):
+        class_name = underscrore_to_camel(self.name)
+        f.write(f"\nclass Check{class_name}(Check):\n\n")
+        f.write(f"    def run(self, cmd_args=None):\n")
+        f.write(f"        pass\n")
 
 class HierNode:
 
-    def __init__(self, name):
-        m = re.match(r"(?P<node_name>[^\[^ ]+)(?P<range_str>\[\S+\])?", name)
+    def __init__(self, entry, parent):
+        if not parent:
+            return
+
+        m = re.match(r"(?P<node_name>[^\[^ ]+)(?P<range_str>\[\S+\])?", entry.name)
         if not m:
-            raise Exception(f"invalid node name {name}")
+            raise Exception(f"invalid node name {entry.name}")
         self.node_name = m.group("node_name")
         range_str = m.group("range_str")
         self.range_str = range_str if range_str else ""
+
         self.sub_nodes = []
         self.checks_list = []
         self.commands_list = []
-        self.parent_node = None
+        self.props_list = []
+        self.parent_node = parent
 
-    def add_sub_node(self, node):
-        self.sub_nodes.append(node)
-        node.node_path = f"{self.node_path}.{node.node_name}{node.range_str}"
-        node.os_path = f"{self.os_path}/{node.node_name}"
-        node.parent_node = self
+        node_path_parent_prefix = parent.node_path
+        if node_path_parent_prefix != ":":
+            node_path_parent_prefix += "."
+
+        self.node_path = f"{node_path_parent_prefix}{self.node_name}{self.range_str}"
+        self.os_path = f"{parent.os_path}/{self.node_name}"
+
+        for child_entry in entry.children:
+            if child_entry.type == "node":
+                self.sub_nodes.append(HierNode(child_entry, self))
+            elif child_entry.type == "prop":
+                self.props_list.append(Prop(child_entry, self))
+            elif child_entry.type == "cmd":
+                self.commands_list.append(Command(child_entry, self))
+            elif child_entry.type == "check" or child_entry.type == "chk":
+                self.checks_list.append(Check(child_entry, self))
+
+    def build_hier_code(self):
         # create directory here, to allow adding cmds and checks
         # the node_diag file will be created later after having subs[]
-        os.makedirs(node.os_path, exist_ok=True)
+        os.makedirs(self.os_path, exist_ok=True)
 
-    def underscrore_to_camel(node_name):
-        fragments = node_name.split("_")
-        fragments_upper = [(frag[0]).upper() + frag[1:] for frag in fragments]
-        joined = "".join(fragments_upper)
-        return joined
+        self.create_node_file()
+        # self.create_prop_file()
+        self.create_command_file()
+        self.create_check_file()
 
+        for sub in self.sub_nodes:
+            sub.build_hier_code()
+    
     def create_node_file(self):
         node_file = f"{self.os_path}/node_diag.py"
-        class_name = HierNode.underscrore_to_camel(self.node_name)
+        class_name = underscrore_to_camel(self.node_name)
         if not os.path.exists(node_file):
             with open(node_file, "w") as f:
                 f.write("from hood.diag_node import NodeDiag\n\n")
@@ -50,91 +121,64 @@ class HierNode:
                 subs_line += "]"
                 f.write(f"{subs_line}\n")
 
-    def sub_nodes_list_check(self):
-        # TBD
-        return True
+    def create_command_file(self):
+        if not len(self.commands_list):
+            return
+        
+        file_name = f"{self.os_path}/commands.py"
+        f = open(file_name, "w")
+        if not f:
+            raise Exception(f"Failed to open file {file_name}")
+            
+        f.write("from hood.diag_cmd import Command\n\n")
 
-    def end_setup(self):
-        if self.node_name == "top":
-            stop()
-        print(f"end setup, node {self.node_name}")
-        self.create_node_file()
-        ret = self.sub_nodes_list_check()
-        if not ret:
-            print("sub_nodes list checking failed")
+        for command in self.commands_list:
+            command.write_class_to_file(f)
+            f.write(f"\n")
+
+        f.close()
+
+    def create_check_file(self):
+        if not len(self.checks_list):
             return
 
-    def add_check(self, check):
-        self.checks_list.append(check)
-        class_name = HierNode.underscrore_to_camel(check)
         file_name = f"{self.os_path}/checks.py"
+        f = open(file_name, "w")
+        if not f:
+            raise Exception(f"Failed to open file {file_name}")
+            
+        f.write("from hood.diag_check import Check\n\n")
 
-        found = False
-        if not os.path.exists(file_name):
-            with open(file_name, "w") as f:
-                f.write("from hood.diag_check import Check\n\n")
-        else:
-            with open(file_name, "r") as f:
-                for line in f:
-                    if f"class Check{class_name}" in line:
-                        found = True
+        for check in self.checks_list:
+            check.write_class_to_file(f)
+            f.write(f"\n")
 
-        if not found:
-            with open(file_name, "a") as f:
-                f.write(f"\nclass Check{class_name}(Check):\n\n")
-                f.write(f"    def run(self, cmd_args=None):\n")
-                f.write(f"        pass\n")
-
-    def add_command(self, command):
-        self.commands_list.append(command)
-        class_name = HierNode.underscrore_to_camel(command)
-        file_name = f"{self.os_path}/commands.py"
-
-        found = False
-        if not os.path.exists(file_name):
-            with open(file_name, "w") as f:
-                f.write("from hood.diag_cmd import Command\n\n")
-        else:
-            with open(file_name, "r") as f:
-                for line in f:
-                    if f"class Command{class_name}" in line:
-                        found = True
-
-        if not found:
-            with open(file_name, "a") as f:
-                f.write(f"\nclass Command{class_name}(Command):\n\n")
-                f.write(f"    def run(self, cmd_args=None):\n")
-                f.write(f"        pass\n")
-
+        f.close()
 
 class Hier:
 
-    def __init__(self, conf_file, top_path):
-        conf_f = open(conf_file, "r")
-        self.conf_lines = conf_f.readlines()
-        # add the ending empty line to bring level back to 0
-        self.conf_lines.append("end")
+    def __init__(self, hier_map, top_path):
+        map_f = open(hier_map, "r")
+        self.map_lines = map_f.readlines()
         self.top_path = top_path
-        self.num_conf_lines = len(self.conf_lines)
-        conf_f.close()
+        self.num_map_lines = len(self.map_lines)
+        map_f.close()
 
-    def build_hier(self):
+    def parse_and_create_entries(self):
 
         line_idx = 0
-
-        top_node = HierNode("top")
-        top_node.node_path = ":"
-        top_node.os_path = self.top_path
 
         # The nodes start at level 1, with at least one "|--" ahead of it.
         level = 0
 
-        node_curr = top_node
-        prev_sibling_node = top_node
+        self.top_entry = None
+        curr_entry = None
+        parent = None
 
-        # one pass to scan through the lines
-        while line_idx < self.num_conf_lines:
-            line = self.conf_lines[line_idx]
+        # one pass to scan through the lines to generate the entries, so
+        # the children list are available
+        while line_idx < self.num_map_lines:
+            line = self.map_lines[line_idx]
 
             if line.startswith("#"):
                 line_idx += 1
@@ -150,80 +194,66 @@ class Hier:
             len_marks = len(m.group("marks"))
             if (len_marks % 3):
                 raise Exception("invalid format, should be multiple of 3")
+            new_level  = len_marks / 3
 
-            entry_type = m.group("entry_type")
+            if not m.group("entry_type"):
+                entry_type = "node"
+            else:
+                entry_type = m.group("entry_type")
             entry_name = m.group("entry_name")
-            if entry_type:
-                if len_marks != 3 * (level + 1):
-                    print(f"line is <{line}>")
-                    print(
-                        f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
-                    raise Exception(
-                        f"At level {level } there should be {level+1} indent marks, found {len_marks}")
-                if entry_type == "chk" or entry_type == "check":
-                    if entry_name == None:
-                        entry_name = "over_all"
-                    prev_sibling_node.add_check(entry_name)
-                elif entry_type == "cmd":
-                    prev_sibling_node.add_command(entry_name)
-                continue
+            if entry_type == "chk" or entry_type == "check":
+                if entry_name == None:
+                    entry_name = "over_all"
 
-            # the entry is a node
-            node_name = entry_name
-            try:
-                node = HierNode(node_name)
-            except Exception as e:
-                print(f"line {line_idx}, failed to init node {node_name}")
-                print(e)
-                exit(-1)
-
-            if len_marks == 3 * level:
-                node_curr.add_sub_node(node)
-                prev_sibling_node.end_setup()
-                prev_sibling_node = node
-            elif len_marks == 3 * (level + 1):
-                if not prev_sibling_node:
-                    print("invalid format")
-                    return False
-                node_curr = prev_sibling_node
-                level += 1
-                print(f"down to level {level}, curr {node_curr.node_name}")
-                node_curr.add_sub_node(node)
-                prev_sibling_node = node
-            elif len_marks < 3 * level:
-                new_level = int(len_marks / 3)
-                print(f"-- new_level {new_level}, < level {level}")
+            if new_level == level + 1:
+                parent = curr_entry
+            elif new_level > level + 1:
+                print(f"line is <{line}>")
+                print(
+                    f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
+                raise Exception(
+                    f"invalid new level {new_level}")
+            else: # new_level <= level:
                 while level > new_level:
-                    print(f"-- level {level}, curr {node_curr.node_name}")
-                    if not node_curr:
-                        raise Exception("Invalid node")
-                    prev_sibling_node.end_setup()
-                    if not node_curr.parent_node:
-                        break  # reached top.
-                    node_curr = node_curr.parent_node
-                    if len(node_curr.sub_nodes) < 1:
-                        stop()
-                    prev_sibling_node = node_curr.sub_nodes[-1]
+                    curr_entry = curr_entry.parent
                     level -= 1
-                    print(
-                        f"up to level {level}, node_curr {node_curr.node_name}")
-                if node.node_name != "end":
-                    prev_sibling_node.end_setup()
-                    node_curr.add_sub_node(node)
-                    prev_sibling_node = node
+                parent = curr_entry.parent
+            curr_entry = Entry(entry_type, entry_name, parent)
+           
+            if new_level == 1:
+                self.top_entry = curr_entry
 
-        top_node.sub_nodes[0].create_node_file()
+            level = new_level
 
+    def build_hier_objs_from_entries(self):
+
+        top_empty_node = HierNode(None, None)
+        top_empty_node.node_path = ":"
+        top_empty_node.os_path = self.top_path
+
+        top_entry = self.top_entry
+        if top_entry.type != "node":
+            raise Exception(f"The top entry should be a node")
+        
+        self.top_node = HierNode(top_entry, top_empty_node)
+    
+    def build_hier_code(self):
+        self.top_node.build_hier_code()
+
+    def build_hier(self):
+        self.parse_and_create_entries()
+        self.build_hier_objs_from_entries()
+        self.build_hier_code()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Diag hierarchy builder")
-    parser.add_argument("hier_conf")
+    parser.add_argument("hier_map")
     parser.add_argument("top_dir")
 
     args = parser.parse_args()
     top_dir = os.path.expanduser(args.top_dir)
-    hier_conf = args.hier_conf
+    hier_map = args.hier_map
     os.makedirs(top_dir, exist_ok=True)
-    hier = Hier(hier_conf, top_dir)
+    hier = Hier(hier_map, top_dir)
     hier.build_hier()
