@@ -16,11 +16,13 @@ def underscrore_to_camel(node_name):
 
 class Entry:
 
-    def __init__(self, type, name, parent):
+    def __init__(self, type, name, parent, line_num, line):
         self.type = type
         self.name = name
         self.parent = parent # parent entry at higher level
         self.children = []
+        self.line_num = line_num
+        self.line = line
         if parent:
             parent.children.append(self)
 
@@ -115,6 +117,9 @@ class HierNode:
                 self.commands_list.append(Command(child_entry, self))
             elif child_entry.type == "check" or child_entry.type == "chk":
                 self.checks_list.append(Check(child_entry, self))
+            else:
+                print(f"line {entry.line_num}: {entry.line}")
+                raise Exception(f"invalid sub entry type {child_entry.type} under node")
 
     def build_hier_code(self):
         # create directory here, to allow adding cmds and checks
@@ -137,11 +142,19 @@ class HierNode:
                 f.write("from hood.diag_node import NodeDiag\n\n")
                 f.write(f"class Node{class_name}(NodeDiag):\n\n")
                 f.write(f"    def init(self):\n")
-                subs_line = "        self.subs = ["
+                # write subs
+                subs_line = " "*8 + "self.subs = [\n"
                 for sub in self.sub_nodes:
-                    subs_line += f"\"{sub.node_name}{sub.range_str}\", "
-                subs_line += "]"
+                    subs_line += " "*12 + f"\"{sub.node_name}{sub.range_str}\",\n"
+                subs_line += " "*8 + "]"
                 f.write(f"{subs_line}\n")
+                # write props
+                props_line = " "*8 + "self.props = [\n"
+                for prop in self.props_list:
+                    props_line += " "*12 + f"\"{prop.name}\", \n"
+                props_line += " "*8 + "]"
+                f.write(f"{props_line}\n")
+
 
     def create_command_file(self):
         if not len(self.commands_list):
@@ -240,7 +253,7 @@ class Hier:
                     curr_entry = curr_entry.parent
                     level -= 1
                 parent = curr_entry.parent
-            curr_entry = Entry(entry_type, entry_name, parent)
+            curr_entry = Entry(entry_type, entry_name, parent, line_idx, line)
            
             if new_level == 1:
                 self.top_entry = curr_entry
