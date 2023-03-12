@@ -91,16 +91,17 @@ def cli_cmd():
             print(f"cmd_str = <{cmd_str}>")
 
             cmd_shell.cmd_count += 1
-            f.write(f"== cmd {cmd_shell.cmd_count}: {cmd_str}\n")
+            f.write(f"== cmd {cmd_shell.cmd_count}: {obj_path} {cmd_str}\n")
             if obj_path:
                 cmd_shell.onecmd("cd " + obj_path)
             cmd_shell.onecmd("cmd " + cmd_str)
             output_dict = cmd_shell.output_dict
 
-            # print(f"cmd output_dict {output_dict}")
+        f.write(f"-- cmd output_dict {output_dict}")
         ret_json = jsonify(output_dict)
         # print(f"ret_json: {ret_json}")
-        f.write(f"--ret_json: {ret_json}\n")
+
+        #f.write(f"--ret_json: {ret_json}\n")
         f.flush()
 
     except Exception as e:

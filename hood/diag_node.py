@@ -467,9 +467,7 @@ class NodeDiag(DiagObj):
             sub_dir = os.path.join(self.node_file_path, obj_name)
             if not os.path.isdir(sub_dir):
                 # other configuation to be supported.
-                err_msg = f"sub direcotry {sub_dir} not found"
-                print(err_msg)
-                stop()
+                err_msg = f"import path sub direcotry {sub_dir} not found"
                 raise Exception(err_msg)
             if node_path == ":":
                 sub_node_import_path = import_path + obj_name

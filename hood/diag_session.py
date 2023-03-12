@@ -65,7 +65,11 @@ class Session:
         # self.goto_obj(entry_obj_path)
         self.setup_top_empty_node(
             sub_node=self.top_node_name, node_file_path=dir_path)
-        self.goto_obj(entry_obj_path)
+        try:
+            self.goto_obj(entry_obj_path)
+        except Exception as e:
+            print(f"Exception: {e}")
+            exit(-1)
 
     def setup_logging(self):
         logger = logging.getLogger('diag log')

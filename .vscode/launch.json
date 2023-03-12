@@ -75,7 +75,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "~/proj/data_center_sim/hier.txt",
+                "~/proj/data_center_sim/hier_map.txt",
                 "~/proj/data_center_sim",
             ]
         },
