@@ -30,7 +30,19 @@ class Prop:
     def __init__(self, entry, node):
         self.entry = entry
         self.node = node
-        self.name = entry.name
+        m = re.match(r"(?P<name>[^\[^ ]+)(?P<range_str>\[[^\]]*\])?", entry.name)
+        if not m:
+            raise Exception(f"invalid prop name {entry.name}")
+        self.name = m.group("name")
+        range_str = m.group("range_str")
+        if "ip_address" in entry.line:
+            print(entry.line)
+        self.range_str = range_str if range_str else ""
+
+    def write_class_to_file(self, f):
+        class_name = underscrore_to_camel(self.name)
+        f.write(f"\nclass Property{class_name}(Property):\n")
+        f.write(" "*4 + f"pass\n")
 
 class Command:
     def __init__(self, entry, node):
@@ -109,6 +121,8 @@ class HierNode:
         self.os_path = f"{parent.os_path}/{self.node_name}"
 
         for child_entry in entry.children:
+            if "ip_address" in child_entry.line:
+                print(f"{child_entry}")
             if child_entry.type == "node":
                 self.sub_nodes.append(HierNode(child_entry, self))
             elif child_entry.type == "prop":
@@ -127,7 +141,7 @@ class HierNode:
         os.makedirs(self.os_path, exist_ok=True)
 
         self.create_node_file()
-        # self.create_prop_file()
+        self.create_property_file()
         self.create_command_file()
         self.create_check_file()
 
@@ -151,10 +165,26 @@ class HierNode:
                 # write props
                 props_line = " "*8 + "self.props = [\n"
                 for prop in self.props_list:
-                    props_line += " "*12 + f"\"{prop.name}\", \n"
+                    props_line += " "*12 + f"\"{prop.name}{prop.range_str}\", \n"
                 props_line += " "*8 + "]"
                 f.write(f"{props_line}\n")
 
+    def create_property_file(self):
+        if not len(self.props_list):
+            return
+
+        file_name = f"{self.os_path}/properties.py"
+        f = open(file_name, "w")
+        if not f:
+            raise Exception(f"Failed to open file {file_name}")
+
+        f.write("from hood.diag_prop import Property\n\n")
+
+        for prop in self.props_list:
+            prop.write_class_to_file(f)
+            f.write(f"\n")
+
+        f.close()
 
     def create_command_file(self):
         if not len(self.commands_list):
@@ -219,7 +249,7 @@ class Hier:
                 line_idx += 1
                 continue
 
-            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>\S+)\])?(?P<entry_name>\S+)?"
+            pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>[^\]]+)\])?(?P<entry_name>\S+)?"
             m = re.match(pattern, line)
             line_idx += 1
 
@@ -253,6 +283,8 @@ class Hier:
                     curr_entry = curr_entry.parent
                     level -= 1
                 parent = curr_entry.parent
+            if "ip_address" in line:
+                print(f"{line}")
             curr_entry = Entry(entry_type, entry_name, parent, line_idx, line)
            
             if new_level == 1:

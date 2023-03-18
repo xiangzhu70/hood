@@ -116,7 +116,7 @@ class Session:
             and obj_path_str in self.curr_obj.obj_names_dict
         ):
             class_type = self.curr_obj.obj_names_dict[obj_path_str]
-            if class_type in [DiagObjType.Check, DiagObjType.Command]:
+            if class_type in [DiagObjType.Check, DiagObjType.Command, DiagObjType.Property]:
                 obj_path_str = f".:[{class_type.value}]{obj_path_str}"
 
         move_action = self.obj_path.move_path(
@@ -154,7 +154,7 @@ class Session:
 
         if obj_type == "node":
             curr_obj = self.curr_node
-        elif obj_type == "check" or obj_type == "cmd":
+        elif obj_type == "check" or obj_type == "cmd" or obj_type=="prop":
             curr_obj = getattr(self.curr_node, obj_name)
         else:
             stop()

@@ -112,6 +112,7 @@ class NodeDiag(DiagObj):
         self.import_path = import_path
 
         # This legit obj names (cmds, checks etc) will be cached here.
+        # TBD needed?  shouldn't objs_dict cover all the caching needs?
         self.obj_names_dict = {}
 
         # self.map_sub_to_class = {}
@@ -122,9 +123,14 @@ class NodeDiag(DiagObj):
         # so the hierarchy structures
         # (subs, cmds, checks) are derived from the files.
         # In more complicated cases such as structure changes for
-        # inherited classes, muliple elements, set auto_cfg to False,
+        # inherited classes, muliple elements, set file_cfg to False,
         # in init(), and explicitly set (subs, cmds, checks)
-        self.auto_cfg = node_parent is not None
+        #self.file_cfg = node_parent is not None
+        # Not sure if it is useful any more.  Why not just explicitly control
+        # it?  display order should be explitly set anyway.  with hier_build,
+        # it is easy to specify.  So, let the files just provide implementation,
+        # not affecting the declaration.
+        self.file_cfg = False
 
         # ownership if each node is clearly defined
         # if it is empty, the ownership should be inherited from
@@ -143,6 +149,8 @@ class NodeDiag(DiagObj):
         # Run customized init for the diag nodes if init is overridden
         self.init()
 
+        # After sub objects init calls.
+        # Do some optimization preparation here.
         self.post_init()
 
     # To be overridden
@@ -150,11 +158,16 @@ class NodeDiag(DiagObj):
         pass
 
     def post_init(self):
-        if self.auto_cfg:
+        if self.file_cfg:
             self.cfg_by_files()
 
+        # Optimize sub obj accesses with an obj cache.
         self.objs_dicts_init()
 
+    # the lists could be populated by files.  in some cases, the lists
+    # depend on specific derived types, so the files do not correspond
+    # to the actual lists, then the lists should be used instead of the
+    # files.
     def cfg_by_files(self):
         # support cmds and checks, but not subs for now
         map_class_to_obj_names = {}
@@ -181,6 +194,7 @@ class NodeDiag(DiagObj):
         for (obj_type, objs_list) in [
             (DiagObjType.Command, self.cmds),
             (DiagObjType.Check, self.checks),
+            (DiagObjType.Property, self.props),
         ]:
             if not self.check_obj_file_exists(obj_type):
                 continue
@@ -272,9 +286,10 @@ class NodeDiag(DiagObj):
         print(f"node file path: {self.node_file_path}")
         if hasattr(self, "info"):
             print(f"Info: {self.info}")
-        self.show_subs()
+        self.show_props()
         self.show_cmds()
         self.show_checks()
+        self.show_subs()
         show_dict["inst_name"] = self.inst_name
         show_dict["node_path"] = self.node_path
         show_dict["props"] = self.props
@@ -282,10 +297,16 @@ class NodeDiag(DiagObj):
         show_dict["checks"] = self.checks
         return show_dict
 
+    def show_props(self):
+        print("--Props:")
+        for prop in self.props:
+            print(prop)
+            curr_obj = self.session.goto_obj(f"prop", )
+    
     def show_subs(self):
         print("--Sub nodes:")
         for sub in self.subs:
-            print(sub)
+            print(f"  {sub}")
 
     def show_props(self):
         print("--Properties")
@@ -434,6 +455,9 @@ class NodeDiag(DiagObj):
                 NameStyle.underscore_to_camel(obj_name)
         return obj_class_name
 
+    # __getattr__ allows getting <node>.<obj> without having self.<obj>
+    # assigned in code ahead of time.
+    # TBD is it really needed any more?
     def __getattr__(self, attr_name):
         if attr_name in ["info"]:
             return None
