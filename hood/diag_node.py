@@ -125,7 +125,7 @@ class NodeDiag(DiagObj):
         # In more complicated cases such as structure changes for
         # inherited classes, muliple elements, set file_cfg to False,
         # in init(), and explicitly set (subs, cmds, checks)
-        #self.file_cfg = node_parent is not None
+        # self.file_cfg = node_parent is not None
         # Not sure if it is useful any more.  Why not just explicitly control
         # it?  display order should be explitly set anyway.  with hier_build,
         # it is easy to specify.  So, let the files just provide implementation,
@@ -146,6 +146,10 @@ class NodeDiag(DiagObj):
         # the diag checks
         self.checks = []
 
+        # for now, use prop_dict in node to keep the values, for easy implementation,
+        # not using the prop obj type
+        self.props_dict = {}
+
         # Run customized init for the diag nodes if init is overridden
         self.init()
 
@@ -163,6 +167,9 @@ class NodeDiag(DiagObj):
 
         # Optimize sub obj accesses with an obj cache.
         self.objs_dicts_init()
+
+        for prop in self.props:
+            self.props_dict[prop] = "Unknown"
 
     # the lists could be populated by files.  in some cases, the lists
     # depend on specific derived types, so the files do not correspond
@@ -299,19 +306,17 @@ class NodeDiag(DiagObj):
 
     def show_props(self):
         print("--Props:")
-        for prop in self.props:
-            print(prop)
-            curr_obj = self.session.goto_obj(f"prop", )
-    
+        # for prop in self.props:
+        #     print(prop)
+        #     curr_obj = self.session.goto_obj(f"prop", )
+        for prop in self.props_dict:
+            val = self.props_dict[prop]
+            print(f"{prop}: {val}")
+
     def show_subs(self):
         print("--Sub nodes:")
         for sub in self.subs:
             print(f"  {sub}")
-
-    def show_props(self):
-        print("--Properties")
-        for prop in self.props:
-            print(f"  {prop}")
 
     def show_checks(self):
         print("--Checks")
@@ -666,6 +671,14 @@ class NodeDiag(DiagObj):
 
         print(f"Added {self.node_path}:[{obj_type}]{obj_name}")
 
+    def prop_set(self, prop, val):
+        self.props_dict[prop] = val
+
+    def prop_get(self, prop):
+        if not prop in self.props_dict:
+            return None
+        return self.props_dict
+
     def cli_get_cmds(self):
         return ["show", "run", "find"]
 
@@ -680,6 +693,18 @@ class NodeDiag(DiagObj):
                 show_type = "node"
             return self.show_tree(show_type=show_type,
                                   tree_level_max=tree_depth)
+        elif arg_cmd == "set":
+            if len(cmd_args) < 2:
+                print(f"Error: invalid set params {cmd_args}")
+                return ret
+            self.prop_set(cmd_args[0], cmd_args[1])
+            return ret
+        elif arg_cmd == "get":
+            if len(cmd_args) < 1:
+                print(f"Error: invalid set params {cmd_args}")
+                return ret
+            return self.prop_get(cmd_args[0])
+
         elif arg_cmd == "run":
             obj_type = cmd_args[1]
             obj_name = cmd_args[2]
@@ -705,4 +730,9 @@ class NodeDiag(DiagObj):
                 obj_type = "node"
             obj_name = cmd_args[1]
             ret = self.add_obj(obj_type, obj_name)
+            return ret
+
+        else:
+            print(
+                f"Error: unknown command {arg_cmd} for the node {self.inst_name}")
             return ret
