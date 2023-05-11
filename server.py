@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import Flask, make_response, jsonify, request, send_from_directory, json
+from flask_socketio import SocketIO, emit
 import os
 from pdb import set_trace as stop
 
@@ -14,11 +15,7 @@ from hood.diag_cli import CmdShell
 
 hood_version = "0.0.0"
 
-# flask app is global, following the flask example.
-
 lock = threading.Lock()
-
-flask_app = Flask(__name__)
 
 log_file = "/tmp/hood_server.log"
 f = open(log_file, "w")
@@ -50,7 +47,10 @@ cmd_shell.cmd_count = 0
 
 # hood changes the cwd.  change it back to allow flask to run
 os.chdir(cwd)
+
+# flask app is global, following the flask example.
 app = Flask(__name__)
+socketio = SocketIO(app)
 
 
 @app.route("/")
@@ -81,6 +81,7 @@ def cli_cmd():
         data = json.loads(data_str)
         request_cmd_str = data["cmd"]
         print(f"request_cmd_str = <{request_cmd_str}>")
+        socketio.emit("server_log", f"request_cmd_str = <{request_cmd_str}>")
         output_dict = {}
         m = re.match(
             r"^(?P<obj_path>\S+)?\s+cmd\s+(?P<cmd_str>.*)$", request_cmd_str)
@@ -117,9 +118,9 @@ def cli_cmd():
 
 if __name__ == "__main__":
 
-    app.run(debug=False,
-            host="0.0.0.0",
-            port=5001,
-            # ssl_context=('/home/xiang/cert/server.crt',
-            # '/home/xiang/cert/server.key')
-            )
+    socketio.run(app,
+        debug=False,
+        port=5001,
+        # ssl_context=('/home/xiang/cert/server.crt',
+        #   '/home/xiang/cert/server.key')
+        )
