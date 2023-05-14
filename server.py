@@ -72,7 +72,6 @@ def home(path):
 def cli_cmd():
 
     lock.acquire()  # ugly lock, will clean up later. TBD
-    print(f"route cmd <{request.data}>")
     ret_json = {}
     try:
 
@@ -80,29 +79,29 @@ def cli_cmd():
         data_str = request.data.decode('utf-8')
         data = json.loads(data_str)
         request_cmd_str = data["cmd"]
-        print(f"request_cmd_str = <{request_cmd_str}>")
-        socketio.emit("server_log", f"request_cmd_str = <{request_cmd_str}>")
+        
         output_dict = {}
         m = re.match(
-            r"^(?P<obj_path>\S+)?\s+cmd\s+(?P<cmd_str>.*)$", request_cmd_str)
+            r"^((?P<obj_path>\S+)\s+)?cmd\s+(?P<cmd_str>.*)$", request_cmd_str)
         if m:
             obj_path = m.group("obj_path")
             cmd_str = m.group("cmd_str")
-            print(f"obj_path = <{obj_path}>")
-            print(f"cmd_str = <{cmd_str}>")
 
             cmd_shell.cmd_count += 1
-            f.write(f"== cmd {cmd_shell.cmd_count}: {obj_path} {cmd_str}\n")
+            log_str = f"== [cmd {cmd_shell.cmd_count}] {obj_path} {cmd_str}"
+            socketio.emit("server_log", log_str)
+            f.write(f"{log_str}\n")
             if obj_path:
                 cmd_shell.onecmd("cd " + obj_path)
             cmd_shell.onecmd("cmd " + cmd_str)
             output_dict = cmd_shell.output_dict
 
-        f.write(f"-- cmd output_dict {output_dict}")
-        ret_json = jsonify(output_dict)
-        # print(f"ret_json: {ret_json}")
+            f.write(f"-- cmd output_dict {output_dict}\n")
+        else:
+            print(f"Parsing failed.  request_cmd_str = <{request_cmd_str}>")
 
-        #f.write(f"--ret_json: {ret_json}\n")
+        ret_json = jsonify(output_dict)
+
         f.flush()
 
     except Exception as e:

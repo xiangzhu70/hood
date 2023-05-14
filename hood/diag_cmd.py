@@ -10,6 +10,7 @@ class Command(DiagObj):
     def __init__(self, context_node, inst_name, node_file_path, import_path):
         self.node = context_node
         self.inst_name = inst_name
+        self.obj_path = f"{self.node.node_path}:[cmd]{inst_name}"
         self.sh_cmd = self.node.session.sh_cmd
         self.logger = self.node.session.logger
         self.init()

@@ -16,6 +16,7 @@ class Check(Command):
         self.node = context_node
         self.inst_name = inst_name
         self.check_path = f"{self.node.node_path}:[check]{inst_name}"
+        self.obj_path = self.check_path
 
         # Check this first.  Save time in OK route.
         self.ok_sufficient_conditions = []

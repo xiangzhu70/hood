@@ -2,6 +2,7 @@
 from pdb import set_trace as stop
 
 import cmd2
+import json
 
 from .diag_session import Session
 
@@ -18,7 +19,7 @@ class CmdShell(cmd2.Cmd):
                  conf_file,
                  state_file_path,
                  verbose,
-                 output_json):
+                 flag_output_json):
         super().__init__(allow_cli_args=False)
         self.allow_cli_args = False
         self.hidden_commands += [
@@ -34,11 +35,14 @@ class CmdShell(cmd2.Cmd):
             "run_script",
         ]
 
+        self.flag_output_json = flag_output_json
+        self.output_json = None
+
         self.session = Session(node_file_path, node_args,
                                conf_file,
                                state_file_path,
                                verbose,
-                               output_json)
+                               flag_output_json)
 
         self._set_prompt()
 
@@ -53,14 +57,15 @@ class CmdShell(cmd2.Cmd):
         """
         Show node, command, or check context-specific info.
         """
-        self.cmd_output = self.session.cli_cmd("show", args)
+        args.cmd = "show"
+        self.do_cmd(args)
 
     def do_tree(self, args):
         """
         Show node tree
         """
-        print("args = " + args)
-        self.cmd_output = self.session.cli_cmd("tree", args)
+        args.cmd = "tree"
+        self.do_cmd(args)
 
     def do_cd(self, args):
         """
@@ -79,12 +84,14 @@ class CmdShell(cmd2.Cmd):
         """
         Run a command on the current node
         """
-        print(f"cmd: {args}")
+        # print(f"cmd: {args}")
 
         # web server also calls session.cli_cmd() this way
 
         self.output_dict = self.session.cli_cmd(
             args.cmd, args.args, tree=args.depth)
+        if self.flag_output_json:
+            self.output_json = json.dumps(self.output_dict)
 
 
 class CliNameSpace:

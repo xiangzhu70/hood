@@ -317,16 +317,19 @@ class NodeDiag(DiagObj):
         print("--Sub nodes:")
         for sub in self.subs:
             print(f"  {sub}")
+        return self.subs
 
     def show_checks(self):
         print("--Checks")
         for check in self.checks:
             print(f"  {check}")
+        return self.checks
 
     def show_cmds(self):
         print("--Commands")
         for cmd in self.cmds:
             print(f"  {cmd}")
+        return self.cmds
 
     def show(self, cmd_args):
         # print(cmd_args)
