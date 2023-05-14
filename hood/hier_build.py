@@ -53,8 +53,9 @@ class Command:
     def write_class_to_file(self, f):
         class_name = underscrore_to_camel(self.name)
         f.write(f"\nclass Command{class_name}(Command):\n\n")
-        f.write(f"    def run(self, cmd_args=None):\n")
-        f.write(f"        pass\n")
+        f.write(" "*4 + f"def run(self, cmd_args=None):\n")
+        run_line = '{self.obj_path}: in run() function'
+        f.write(" "*8 + f'print(f\"{run_line}\")\n')
         
 class Check:
     def __init__(self, entry, node):
@@ -77,22 +78,24 @@ class Check:
         num_deps = len(self.dep_list)
 
         if num_pres or num_deps:
-            f.write("    def init(self):\n")
+            f.write(" "*4 + "def init(self):\n")
             if num_pres:
-                f.write("        self.pres = [\n")
+                f.write(" "*8 + "self.pres = [\n")
                 for pre in self.pre_list:
-                    f.write(f'            "{pre}",\n')
-                f.write("            ]\n")
+                    f.write(" "*12 + f'"{pre}",\n')
+                f.write(" "*12 + "]\n")
             if num_deps:
-                f.write("        self.deps = [\n")
+                f.write(" "*8 + "self.deps = [\n")
                 for dep in self.dep_list:
-                    f.write(f'            "{dep}",\n')
-                f.write("            ]\n")
+                    f.write(" "*12 + f'"{dep}",\n')
+                f.write(" "*12 + "]\n")
 
             f.write("\n")
 
-        f.write(f"    def run(self, cmd_args=None):\n")
-        f.write(f"        pass\n")
+        f.write(" "*4 + "def run(self, cmd_args=None):\n")
+        run_line = '{self.obj_path}: in run() function'
+        f.write(" "*8 + f'print(f\"{run_line}\")\n')
+        f.write(" "*8 + 'return \"OK\"\n')
 
 class HierNode:
 
