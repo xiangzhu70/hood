@@ -72,13 +72,15 @@ class Session:
             exit(-1)
 
     def setup_logging(self):
-        logger = logging.getLogger('diag log')
+        cmd_run_log_file = "/tmp/diag_run.log"
+        print(f"diag_session: Set up cmd run log {cmd_run_log_file}")
+        logger = logging.getLogger('cmd run log')
         logger.setLevel(logging.DEBUG)
         if not self.verbose:
             # Remove console output.  The logging to the file is still on.
             logger.handlers.clear()
             logger.propagate = False
-        fh = logging.FileHandler("/tmp/diag_run.log", mode='w')
+        fh = logging.FileHandler(cmd_run_log_file, mode='w')
         logger.addHandler(fh)
         self.logger = logger
 
@@ -170,5 +172,6 @@ class Session:
     # tree is the bool flag to indicate the command is on the tree mode
     # only or all the nodes underneath.
     # TBD - should this bool flag be specific, or should it be a here?
-    def cli_cmd(self, arg_cmd, args, tree=-1):
-        return self.curr_obj.cli_cmd(arg_cmd, args, tree)
+    def cli_cmd(self, arg_cmd, args, tree=-1, console_show=True):
+        # print(f"-- diag_session: arg_cmd {arg_cmd}, args {args}, tree {tree}")
+        return self.curr_obj.cli_cmd(arg_cmd, args, tree, console_show=console_show)

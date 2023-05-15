@@ -285,18 +285,19 @@ class NodeDiag(DiagObj):
         self.session.curr_node = sub_obj
         return sub_obj
 
-    def show_summary(self):
+    def show_summary(self, console_show=True):
         show_dict = {}
-        print(f"class name: {type(self).__name__}")
-        print(f"inst_name: {self.inst_name}")
-        print(f"node_path: {self.node_path}")
-        print(f"node file path: {self.node_file_path}")
-        if hasattr(self, "info"):
-            print(f"Info: {self.info}")
-        self.show_props()
-        self.show_cmds()
-        self.show_checks()
-        self.show_subs()
+        if console_show:
+            print(f"class name: {type(self).__name__}")
+            print(f"inst_name: {self.inst_name}")
+            print(f"node_path: {self.node_path}")
+            print(f"node file path: {self.node_file_path}")
+            if hasattr(self, "info"):
+                print(f"Info: {self.info}")
+            self.show_props()
+            self.show_cmds()
+            self.show_checks()
+            self.show_subs()
         show_dict["inst_name"] = self.inst_name
         show_dict["node_path"] = self.node_path
         show_dict["props"] = self.props
@@ -331,10 +332,10 @@ class NodeDiag(DiagObj):
             print(f"  {cmd}")
         return self.cmds
 
-    def show(self, cmd_args):
+    def show(self, cmd_args, console_show=True):
         # print(cmd_args)
         if not len(cmd_args):
-            return self.show_summary()
+            return self.show_summary(console_show)
 
         else:
             print(cmd_args)
@@ -352,6 +353,7 @@ class NodeDiag(DiagObj):
         show_node=False,
         expand_group=False,
     ):
+        #stop()
         indent += "|--"
         tree_dict = {}
         if show_node:
@@ -398,7 +400,7 @@ class NodeDiag(DiagObj):
         self.traverse_tree(0, plugin=plugin, show_node=show_node)
         return plugin.found
 
-    def show_tree(self, show_type=None, tree_level_max=-1):
+    def show_tree(self, show_type=None, tree_level_max=-1, console_show=True):
         if not tree_level_max:
             tree_level_max = -1
 
@@ -431,7 +433,7 @@ class NodeDiag(DiagObj):
         else:
             plugin = FindAttr(show_type, show=attr_show, attr_run=attr_run)
         tree_dict = self.traverse_tree(
-            0, plugin=plugin, show_node=True, tree_level_max=tree_level_max
+            0, plugin=plugin, show_node=console_show, tree_level_max=tree_level_max
         )
 
         return tree_dict
@@ -685,17 +687,18 @@ class NodeDiag(DiagObj):
     def cli_get_cmds(self):
         return ["show", "run", "find"]
 
-    def cli_cmd(self, arg_cmd, cmd_args, tree_depth=-1):
+    def cli_cmd(self, arg_cmd, cmd_args, tree_depth=-1, console_show=True):
         ret = None
         if arg_cmd == "show":
-            return self.show(cmd_args)
+            return self.show(cmd_args, console_show=console_show)
         elif arg_cmd == "tree":
             if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
                 show_type = cmd_args[0]
             else:
                 show_type = "node"
             return self.show_tree(show_type=show_type,
-                                  tree_level_max=tree_depth)
+                                  tree_level_max=tree_depth,
+                                  console_show=console_show)
         elif arg_cmd == "set":
             if len(cmd_args) < 2:
                 print(f"Error: invalid set params {cmd_args}")

@@ -38,8 +38,14 @@ node_file_path = os.path.abspath(os.path.expanduser(args.node_file_path))
 
 cwd = os.getcwd()
 
-cmd_shell = CmdShell(node_file_path, None, None, None,
-                     False, True)
+# Starts the diag cmd shell.
+cmd_shell = CmdShell(node_file_path,
+    node_args = None,
+    conf_file = None,
+    state_file_path = None,
+    verbose = False,
+    flag_output_json = True,
+    console_show = False)
 
 
 # the web command count
@@ -48,7 +54,6 @@ cmd_shell.cmd_count = 0
 # hood changes the cwd.  change it back to allow flask to run
 os.chdir(cwd)
 
-# flask app is global, following the flask example.
 app = Flask(__name__)
 socketio = SocketIO(app)
 
@@ -62,10 +67,8 @@ def base():
 # route("/<path:path>") is needed for all the static files (compiled JS/CSS, etc.)
 @app.route("/<path:path>")
 def home(path):
-    print(f"route home, path=<{path}>")
-    ret = send_from_directory(frontend_path, path)
-    print(f"ret = {ret}")
-    return ret
+    print(f"== flask route path: <{path}>")
+    return send_from_directory(frontend_path, path)
 
 
 @app.route("/cmd", methods=["GET", "POST"])
@@ -75,7 +78,6 @@ def cli_cmd():
     ret_json = {}
     try:
 
-        print(request)
         data_str = request.data.decode('utf-8')
         data = json.loads(data_str)
         request_cmd_str = data["cmd"]
@@ -89,6 +91,7 @@ def cli_cmd():
 
             cmd_shell.cmd_count += 1
             log_str = f"== [cmd {cmd_shell.cmd_count}] {obj_path} {cmd_str}"
+            print(log_str)
             socketio.emit("server_log", log_str)
             f.write(f"{log_str}\n")
             if obj_path:

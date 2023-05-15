@@ -19,7 +19,8 @@ class CmdShell(cmd2.Cmd):
                  conf_file,
                  state_file_path,
                  verbose,
-                 flag_output_json):
+                 flag_output_json,
+                 console_show = True):
         super().__init__(allow_cli_args=False)
         self.allow_cli_args = False
         self.hidden_commands += [
@@ -37,6 +38,7 @@ class CmdShell(cmd2.Cmd):
 
         self.flag_output_json = flag_output_json
         self.output_json = None
+        self.console_show = console_show
 
         self.session = Session(node_file_path, node_args,
                                conf_file,
@@ -89,7 +91,7 @@ class CmdShell(cmd2.Cmd):
         # web server also calls session.cli_cmd() this way
 
         self.output_dict = self.session.cli_cmd(
-            args.cmd, args.args, tree=args.depth)
+            args.cmd, args.args, tree=args.depth, console_show=self.console_show)
         if self.flag_output_json:
             self.output_json = json.dumps(self.output_dict)
 
