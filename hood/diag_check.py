@@ -446,8 +446,8 @@ class Check(Command):
             )
         )
 
-    def cli_cmd(self, arg_cmd, cmd_args, tree=False):
-        if arg_cmd == "show":
+    def cli_cmd(self, arg_cmd, cmd_args, tree=False, console_show=True):
+        if arg_cmd == "show" and console_show: # to be cleaned up.
             if not len(cmd_args):
                 self.show()
             elif cmd_args[0].startswith("dep") or cmd_args[0].startswith("cause"):

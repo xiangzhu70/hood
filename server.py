@@ -6,6 +6,7 @@ import os
 from pdb import set_trace as stop
 
 import threading
+import logging
 
 import argparse
 import re
@@ -47,7 +48,6 @@ cmd_shell = CmdShell(node_file_path,
     flag_output_json = True,
     console_show = False)
 
-
 # the web command count
 cmd_shell.cmd_count = 0
 
@@ -56,6 +56,12 @@ os.chdir(cwd)
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+
+class SocketIOHandler(logging.Handler):
+    def emit(self, record):
+        socketio.emit("cmd_run_log", record.getMessage())
+socketio_log_handler = SocketIOHandler()
+cmd_shell.session.logger.addHandler(socketio_log_handler)
 
 
 @app.route("/")

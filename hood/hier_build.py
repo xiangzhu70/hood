@@ -55,7 +55,7 @@ class Command:
         f.write(f"\nclass Command{class_name}(Command):\n\n")
         f.write(" "*4 + f"def run(self, cmd_args=None):\n")
         run_line = '{self.obj_path}: in run() function'
-        f.write(" "*8 + f'print(f\"{run_line}\")\n')
+        f.write(" "*8 + f'self.log(f\"{run_line}\")\n')
         
 class Check:
     def __init__(self, entry, node):
@@ -94,7 +94,7 @@ class Check:
 
         f.write(" "*4 + "def run(self, cmd_args=None):\n")
         run_line = '{self.obj_path}: in run() function'
-        f.write(" "*8 + f'print(f\"{run_line}\")\n')
+        f.write(" "*8 + f'self.log(f\"{run_line}\")\n')
         f.write(" "*8 + 'return \"OK\"\n')
 
 class HierNode:
