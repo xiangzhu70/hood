@@ -1,0 +1,11 @@
+emu[1..2]
+|--pd[1..2]
+|--|--m7
+|--|--|--[chk]up
+|--|--|--[cmd]boot
+|--|--pciesb[0..1]
+|--|--|--[prop]link_up_count
+|--|--|--[prop]cfg_tlp_count
+|--edk[1..4]
+|--|--[prop]boot_state
+|--|--[chk]booted

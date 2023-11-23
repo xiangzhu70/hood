@@ -100,7 +100,8 @@ class Check:
 class HierNode:
 
     def __init__(self, entry, parent):
-        if not parent:
+        print(f"entry {entry}, parent {parent}")
+        if not entry:  # top empty node
             return
 
         m = re.match(r"(?P<node_name>[^\[^ ]+)(?P<range_str>\[\S+\])?", entry.name)
@@ -124,8 +125,6 @@ class HierNode:
         self.os_path = f"{parent.os_path}/{self.node_name}"
 
         for child_entry in entry.children:
-            if "ip_address" in child_entry.line:
-                print(f"{child_entry}")
             if child_entry.type == "node":
                 self.sub_nodes.append(HierNode(child_entry, self))
             elif child_entry.type == "prop":
@@ -141,6 +140,7 @@ class HierNode:
     def build_hier_code(self):
         # create directory here, to allow adding cmds and checks
         # the node_diag file will be created later after having subs[]
+        print(f"mkdir {self.os_path}")
         os.makedirs(self.os_path, exist_ok=True)
 
         self.create_node_file()
@@ -249,7 +249,8 @@ class Hier:
         line_idx = 0
 
         # The nodes start at level 1, with at least one "|--" ahead of it.
-        level = 0
+        level = -1
+        lowest_found_level = -1
 
         self.top_entry = None
         curr_entry = None
@@ -274,7 +275,11 @@ class Hier:
             len_marks = len(m.group("marks"))
             if (len_marks % 3):
                 raise Exception("invalid format, should be multiple of 3")
-            new_level  = len_marks / 3
+            new_level  = int(len_marks / 3)
+            if lowest_found_level == -1:
+                lowest_found_level = new_level
+            else:
+                lowest_found_level = min(new_level, lowest_found_level)
 
             if not m.group("entry_type"):
                 entry_type = "node"
@@ -285,24 +290,26 @@ class Hier:
                 if entry_name == None:
                     entry_name = "over_all"
 
-            if new_level == level + 1:
-                parent = curr_entry
-            elif new_level > level + 1:
-                print(f"line is <{line}>")
-                print(
-                    f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
-                raise Exception(
-                    f"invalid new level {new_level}")
-            else: # new_level <= level:
-                while level > new_level:
-                    curr_entry = curr_entry.parent
-                    level -= 1
-                parent = curr_entry.parent
-            if "ip_address" in line:
-                print(f"{line}")
+            if new_level != level:
+                print(f"level change {level} -> {new_level}: line {line}")
+                if new_level == level + 1:
+                    parent = curr_entry
+                elif new_level > level + 1:
+                    print(f"line is <{line}>")
+                    print(
+                        f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
+                    raise Exception(
+                        f"invalid new level {new_level}")
+                else: # new_level <= level:
+                    while level > new_level:
+                        curr_entry = curr_entry.parent
+                        level -= 1
+                    if curr_entry:
+                        parent = curr_entry.parent
             curr_entry = Entry(entry_type, entry_name, parent, line_idx, line)
            
-            if new_level == 1:
+            if new_level == lowest_found_level:
+                print(f"top entry: {curr_entry.name}")
                 self.top_entry = curr_entry
 
             level = new_level
@@ -318,6 +325,7 @@ class Hier:
             raise Exception(f"The top entry should be a node")
         
         self.top_node = HierNode(top_entry, top_empty_node)
+        print(f"top_node {self.top_node}")
     
     def build_hier_code(self):
         self.top_node.build_hier_code()

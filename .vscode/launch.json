@@ -79,5 +79,17 @@
                 "~/proj/data_center_sim",
             ]
         },
+        {
+            "name": "hier_build hier_map.txt .",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/hood/hier_build.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "~/proj/hood/hood/hier_map.txt",
+                ".",
+            ]
+        },
     ]
 }
