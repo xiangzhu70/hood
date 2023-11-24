@@ -3,7 +3,9 @@
 #  A hierarchical OO diag framework to organize the information and tools
 
 from hood.diag_state import DiagState
-from hood.diag_utils import parse_key_val_pairs, ShellCommand
+from hood.diag_utils import parse_key_val_pairs
+from platform.sh_cmd import ShellCommand
+from platform.ssh_cmd import SshCommand
 from hood.diag_obj import DiagObjType, DiagObj
 from hood.diag_node import NodeDiag
 from hood.diag_check import Check
@@ -16,7 +18,7 @@ diag_version = "0.0.0"
 
 verbose = False
 
-
+#TBD Session contains lots of platform and environment logic.  separate them out?
 class Session:
 
     sessions_count = 0
@@ -38,6 +40,7 @@ class Session:
 
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
+        self.ssh_cmd = SshCommand(self.logger)
 
         self.state = DiagState(conf_file, state_file_path)
 
