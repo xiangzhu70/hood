@@ -4,8 +4,8 @@
 
 from hood.diag_state import DiagState
 from hood.diag_utils import parse_key_val_pairs
-from platform.sh_cmd import ShellCommand
-from platform.ssh_cmd import SshCommand
+from pltm.sh_cmd import ShellCommand
+from pltm.ssh_cmd import SshCommand
 from hood.diag_obj import DiagObjType, DiagObj
 from hood.diag_node import NodeDiag
 from hood.diag_check import Check
