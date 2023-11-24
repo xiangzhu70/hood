@@ -259,15 +259,16 @@ class Hier:
         # one pass to scan through the lines to generate the entries, so
         # the children list are available
         while line_idx < self.num_map_lines:
-            line = self.map_lines[line_idx]
+            line = self.map_lines[line_idx].strip()
 
             if line.startswith("#"):
                 line_idx += 1
                 continue
 
+            print(f"--line {line_idx:#3d}: {line}")
+
             pattern = r"(?P<marks>(\|\-\-)*)(\[(?P<entry_type>[^\]]+)\])?(?P<entry_name>\S+)?"
             m = re.match(pattern, line)
-            line_idx += 1
 
             if not m:
                 raise Exception(f"line {line_idx} <{line} invalid")
@@ -291,13 +292,12 @@ class Hier:
                     entry_name = "over_all"
 
             if new_level != level:
-                print(f"level change {level} -> {new_level}: line {line}")
+                print(f"    level change {level} -> {new_level}")
                 if new_level == level + 1:
                     parent = curr_entry
                 elif new_level > level + 1:
                     print(f"line is <{line}>")
-                    print(
-                        f"line {line_idx}: entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
+
                     raise Exception(
                         f"invalid new level {new_level}")
                 else: # new_level <= level:
@@ -308,11 +308,14 @@ class Hier:
                         parent = curr_entry.parent
             curr_entry = Entry(entry_type, entry_name, parent, line_idx, line)
            
-            if new_level == lowest_found_level:
+            if new_level == lowest_found_level and (not self.top_entry):
                 print(f"top entry: {curr_entry.name}")
                 self.top_entry = curr_entry
 
             level = new_level
+
+            print(f"    entry_type {entry_type}, entry_name {entry_name}, len_marks {len_marks}, level {level}")
+            line_idx += 1
 
     def build_hier_objs_from_entries(self):
 
