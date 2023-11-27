@@ -24,8 +24,9 @@ class Command(DiagObj):
     def show(self):
         print(f"Command name = {self.inst_name}")
 
-    def run(self, cmd_args):
-        print(f"-- Command {self.inst_name} run, args={cmd_args}")
+    def run(self, cmd_args, console_show=True):
+        if console_show:
+            print(f"-- Command {self.inst_name} run, args={cmd_args}")
 
     def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
         ret = self.sh_cmd.run_cmd(cmd, shell=shell, realtime=realtime, timeout=timeout)

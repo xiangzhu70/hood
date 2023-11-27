@@ -142,7 +142,7 @@ class NodeDiag(DiagObj):
         # the properties
         self.props = []
         # commands here do not implicitly inherit.
-        self.cmds = []
+        self.commands = []
         # the diag checks
         self.checks = []
 
@@ -199,7 +199,7 @@ class NodeDiag(DiagObj):
 
         # for commands and checks
         for (obj_type, objs_list) in [
-            (DiagObjType.Command, self.cmds),
+            (DiagObjType.Command, self.commands),
             (DiagObjType.Check, self.checks),
             (DiagObjType.Property, self.props),
         ]:
@@ -215,7 +215,16 @@ class NodeDiag(DiagObj):
                     continue
                 objs_list.append(obj_name)
 
+    # Build obj_names_dict as a map of name->obj_type
     def objs_dicts_init(self):
+
+        # self.session is not assigned until after the NodeDiag consturction.
+        # so it is not availble to look up.  but there is no need to be verbose
+        # when contructing the top empty node.
+        verbose = self.inst_name != "top" and self.session.verbose
+
+        if verbose:
+            print(f"{self.inst_name} obj_names_dict: ")
 
         # constructed objects will be saved here for fast lookup
         self.objs_dict = {}
@@ -236,12 +245,20 @@ class NodeDiag(DiagObj):
             if range_str:
                 self.sub_groups[sub_type_name] = range_str
             self.obj_names_dict[sub_type_name] = DiagObjType.Node
+            if verbose:
+                print(f"    {sub_type_name}, type node")
         for prop_name in self.props:
             self.obj_names_dict[prop_name] = DiagObjType.Property
-        for cmd_name in self.cmds:
+            if verbose:
+                print(f"    {prop_name}, type prop")            
+        for cmd_name in self.commands:
             self.obj_names_dict[cmd_name] = DiagObjType.Command
+            if verbose:
+                print(f"    {cmd_name}, type cmd")                    
         for check_name in self.checks:
             self.obj_names_dict[check_name] = DiagObjType.Check
+            if verbose:
+                print(f"    {check_name}, type check")  
 
     def construct_class_obj(self, module_path, class_name, class_type, inst_name):
         import_path = f"{self.session.import_path_prefix}{module_path}"
@@ -301,7 +318,7 @@ class NodeDiag(DiagObj):
         show_dict["inst_name"] = self.inst_name
         show_dict["node_path"] = self.node_path
         show_dict["props"] = self.props
-        show_dict["cmds"] = self.cmds
+        show_dict["cmds"] = self.commands
         show_dict["checks"] = self.checks
         return show_dict
 
@@ -328,9 +345,9 @@ class NodeDiag(DiagObj):
 
     def show_cmds(self):
         print("--Commands")
-        for cmd in self.cmds:
+        for cmd in self.commands:
             print(f"  {cmd}")
-        return self.cmds
+        return self.commands
 
     def show(self, cmd_args, console_show=True):
         # print(cmd_args)
@@ -353,11 +370,10 @@ class NodeDiag(DiagObj):
         show_node=False,
         expand_group=False,
     ):
-        #stop()
-        indent += "|--"
         tree_dict = {}
         if show_node:
             print(f"{indent}{self.inst_name}")
+        indent += "|--"
         tree_dict["name"] = self.inst_name
         tree_dict["node_path"] = self.node_path
         tree_dict["children"] = []
@@ -482,7 +498,7 @@ class NodeDiag(DiagObj):
             print("failed to set up <{attr_name}> obj")
             raise AttributeError
         # TBD looks hacky, should be removed?
-        print(f"xxx set up <{attr_name}> for <{self.inst_name}>")
+        print(f"xxx set up atrribute <{attr_name}> for <{self.inst_name}>")
         setattr(self, attr_name, obj)
         return obj
 

@@ -69,20 +69,25 @@ class Session:
         self.setup_top_empty_node(
             sub_node=self.top_node_name, node_file_path=dir_path)
         try:
-            self.goto_obj(entry_obj_path)
+            self.goto_obj(entry_obj_path, verbose=verbose)
         except Exception as e:
             print(f"Exception: {e}")
             exit(-1)
 
     def setup_logging(self):
         cmd_run_log_file = "/tmp/diag_run.log"
-        print(f"diag_session: Set up cmd run log {cmd_run_log_file}")
-        logger = logging.getLogger('cmd run log')
-        logger.setLevel(logging.DEBUG)
+        if self.verbose:
+            print(f"diag_session: Set up cmd run log {cmd_run_log_file}")
+        logger = logging.getLogger()
+        logger.removeHandler(logger.handlers[0])  # Remove the default handler
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
         if not self.verbose:
-            # Remove console output.  The logging to the file is still on.
-            logger.handlers.clear()
-            logger.propagate = False
+            logger.setLevel(logging.INFO)
+        else:
+            logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler(cmd_run_log_file, mode='w')
         logger.addHandler(fh)
         self.logger = logger
@@ -112,7 +117,9 @@ class Session:
     #     self.nodes_visited[":"] = top_node
     #     return top_node
 
-    def goto_obj(self, obj_path_str, obj_type=None):
+    def goto_obj(self, obj_path_str, obj_type=None, verbose=False):
+        if verbose:
+            print(f"goto_obj: obj_path_str {obj_path_str}, type {obj_type}")
         # shortcut case
         # 'cd inband_ping" will go to .:[check]inband_ping.
         # since the names are already in the dict, easy to look up, to save some typing
@@ -125,7 +132,7 @@ class Session:
                 obj_path_str = f".:[{class_type.value}]{obj_path_str}"
 
         move_action = self.obj_path.move_path(
-            obj_path_str, obj_type=obj_type
+            obj_path_str, obj_type=obj_type, verbose=verbose
         )
         (top, parent_count, sub_node_path) = (move_action.is_top,
                                               move_action.parent_count, move_action.sub_node_path)
@@ -177,4 +184,13 @@ class Session:
     # TBD - should this bool flag be specific, or should it be a here?
     def cli_cmd(self, arg_cmd, args, tree=-1, console_show=True):
         # print(f"-- diag_session: arg_cmd {arg_cmd}, args {args}, tree {tree}")
-        return self.curr_obj.cli_cmd(arg_cmd, args, tree, console_show=console_show)
+        # logger_level = self.logger.level
+        # raising logger level is not really needed, because the default log()
+        # does self.logger.info()
+        # will consider how to seperate internal logging level and command
+        # logging level later.
+        # if console_show:
+        #     self.logger.setLevel(logging.DEBUG)
+        ret = self.curr_obj.cli_cmd(arg_cmd, args, tree)
+        # self.logger.setLevel(logger_level)
+        return ret

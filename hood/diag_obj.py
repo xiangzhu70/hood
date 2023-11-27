@@ -7,7 +7,7 @@ from pdb import set_trace as stop
 from hood.diag_utils import NameStyle
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -71,13 +71,15 @@ class DiagObj:
         # The caller should go to top if top==True
         # Otherwise, it goes up parents by parents_count, and go to
         # sub_node_path.
-        def move_path(self, obj_path: str, obj_type=None):
+        def move_path(self, obj_path: str, obj_type=None, verbose=False):
             parents_count = 0  # current
             top = False
             sub_node_path = ""
             top_node_name = self.top_node_name
             curr_path = self.path
 
+            if verbose:
+                print(f"obj_path {obj_path}, obj_type {obj_type}")
             # to support "cd [check]<check_name>" case, prepend ".:"
             if obj_path.startswith("["):
                 obj_path = ".:" + obj_path
@@ -138,6 +140,12 @@ class DiagObj:
             sub_node_path = m.group("node_path")
             self.obj_type = m.group("type")
             self.obj_name = m.group("name")
+
+            if self.obj_type == "chk":
+                self.obj_type = "check"
+            if verbose:
+                print(f"matched.  obj_path {obj_path}"
+                      f" node_path {sub_node_path}, obj_type {self.obj_type}, obj_name {self.obj_name}")
             if self.obj_name:  # so it is an attached_obj, not the node itself
                 if obj_type:  # explicitly provided by the caller
                     expected_type = obj_type.value.lower()
@@ -155,6 +163,8 @@ class DiagObj:
             if not self.obj_type:
                 self.obj_type = "node"
 
+            if verbose:
+                print(f"move_path return: top {top}, parents_count {parents_count}, path {sub_node_path}")
             return DiagObj.PathMoveAction(top, parents_count, sub_node_path)
 
     @staticmethod

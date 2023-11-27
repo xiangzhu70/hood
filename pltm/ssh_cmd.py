@@ -1,7 +1,9 @@
 import os
 import paramiko
 import logging
-logging.basicConfig(level=logging.INFO)
+
+paramiko_logger = logging.getLogger('paramiko')
+paramiko_logger.setLevel(logging.WARNING)
 
 class SshCommand:
     def __init__(self, logger):
@@ -16,13 +18,13 @@ class SshCommand:
     # This is debuggedd to work with the jump settings in my .ssh/config.
     # More debugging is needed to handle the variations.
     def host_connect(self, hostname, username, port=22, ssh_config=None):
-        self.logger.info(f"host_connect: hostname {hostname}, username {username}")
+        self.logger.debug(f"host_connect: hostname {hostname}, username {username}")
         if not ssh_config:
             ssh_config = paramiko.SSHConfig()
             with open(os.path.expanduser('~/.ssh/config')) as f:
                 ssh_config.parse(f)
         host_config = ssh_config.lookup(hostname)
-        self.logger.info(f"found host_config for {hostname}")
+        self.logger.debug(f"found host_config for {hostname}")
         final_hostname = host_config.get('hostname')
         proxy_jump = host_config.get('proxyjump')
 
@@ -30,15 +32,17 @@ class SshCommand:
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         if proxy_jump:
-            self.logger.info(f"proxy_jump: {proxy_jump}")
+            self.logger.debug(f"proxy_jump: {proxy_jump}")
             jump_fields = proxy_jump.split('@')
             jump_username = jump_fields[0]
             jump_hostname = jump_fields[1]
             intermediate_ssh = self.host_connect(jump_hostname, jump_username, ssh_config=ssh_config)
             sock = intermediate_ssh.get_transport().open_channel('direct-tcpip', (final_hostname, port), ('', 0))
+            self.logger.debug(f"proxy_jump final connect: hostname {final_hostname}, username {username}, key {self.private_key}")
             ssh.connect(hostname=final_hostname, username=username, port=port, sock=sock, pkey=self.private_key)
         else:
-            self.logger.info(f"no more jump.  connect to final_hostname {final_hostname}")
+            self.logger.debug(f"no more jump.  connect to final_hostname {final_hostname}, username {username}"
+                             f", key {self.private_key}")
             ssh.connect(hostname=final_hostname,
                         username=username,
                         pkey=self.private_key)
@@ -47,17 +51,21 @@ class SshCommand:
     def ssh_run(self, host, username, cmd):
         ssh = self.host_connect(host, username)
         channel = ssh.get_transport().open_session()
-        channel.exec_command(cmd)
 
+        lines = []
+        channel.exec_command(cmd)
         try:
             while True:
                 data = channel.recv(1024)
                 if not data:
                     break
-                self.logger.info(data.decode('utf-8'), end='')
+                lines.append(data.decode('utf-8'))
+                #self.logger.info(data.decode('utf-8'))
         except KeyboardInterrupt:
             self.logger.info("sending ctrl-c")
             channel.sendall(b'\x03')
 
         channel.close()
         ssh.close()
+
+        return lines

@@ -24,8 +24,54 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "~/proj/solana_diag/solana",
+                "emu",
                 "show",
+            ]
+        },
+        // traverse to a check
+        // -v emu.em1:[chk]up run
+        // -v ~/proj/emu.em1:[chk]up run
+        {
+            "name": "diag go to a check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-v",
+                "~/proj/emu.em1:[chk]up",
+                "run",
+            ]
+        },
+        // -v emu.em1:[cmd]get_running_info run
+        {
+            "name": "diag run cmd",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                //"-v",
+                "~/proj/emu.em1:[cmd]get_running_info",
+                "run",
+            ]
+        },
+        // ~/proj/emu.edk1:[chk]device_enumerated triage inject em1.mps.firmware_up==FAIL
+        {
+            "name": "diag triage inject",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-v",
+                "~/proj/emu.edk1:[chk]device_enumerated",
+                "triage",
+                "inject",
+                "em1.mps.firmware_up==FAIL",
             ]
         },
         {
@@ -41,14 +87,15 @@
             ]
         },
         {
-            "name": "diag onecmd",
+            "name": "diag tree",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/diag.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "~/proj/data_center_sim/data_center",
+                "~/proj/emu"
+                //"~/proj/data_center_sim/data_center",
                 "tree",
                 //    "-t",
                 //    "4",
