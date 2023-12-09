@@ -58,9 +58,7 @@ class Session:
         self.mock_patchers = {}
 
         if node_args_str:
-            print("Got node_args, should this still be supported?")
-            exit(-1)
-        # self.node_args = parse_key_val_pairs(node_args_str)
+            self.node_args = parse_key_val_pairs(node_args_str)
 
         self.obj_path = DiagObj.Path(
             init_path=":", top_node_name=self.top_node_name)
@@ -183,7 +181,7 @@ class Session:
     # only or all the nodes underneath.
     # TBD - should this bool flag be specific, or should it be a here?
     def cli_cmd(self, arg_cmd, args, tree=-1, console_show=True):
-        # print(f"-- diag_session: arg_cmd {arg_cmd}, args {args}, tree {tree}")
+        # print(f"-- diag_session: arg_cmd {arg_cmd}, args {args}, tree {tree}, node_args {self.node_args}")
         # logger_level = self.logger.level
         # raising logger level is not really needed, because the default log()
         # does self.logger.info()

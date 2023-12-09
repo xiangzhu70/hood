@@ -73,6 +73,7 @@ if __name__ == "__main__":
             tree_arg = ""
         cmd = "cmd " + args.command + " " + \
             tree_arg + " " + " ".join(args.cmd_args)
+        # Always go through the Cmd2 module, even not in shell mode
         cmd_shell.onecmd(cmd)
         if args.json:
             print(f"output_dict = {cmd_shell.output_dict}")
