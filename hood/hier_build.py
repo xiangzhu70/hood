@@ -168,19 +168,19 @@ class HierNode:
                 # write props
                 props_line = " "*8 + "self.props = [\n"
                 for prop in self.props_list:
-                    props_line += " "*12 + f"\"{prop.name}{prop.range_str}\", \n"
+                    props_line += " "*12 + f"\"{prop.name}{prop.range_str}\",\n"
                 props_line += " "*8 + "]"
                 f.write(f"{props_line}\n")
                 # write checks
                 checks_line = " "*8 + "self.checks = [\n"
                 for check in self.checks_list:
-                    checks_line += " "*12 + f"\"{check.name}\", \n"
+                    checks_line += " "*12 + f"\"{check.name}\",\n"
                 checks_line += " "*8 + "]"
                 f.write(f"{checks_line}\n")
                 # write commands
                 commands_line = " "*8 + "self.commands = [\n"
                 for command in self.commands_list:
-                    commands_line += " "*12 + f"\"{command.name}\", \n"
+                    commands_line += " "*12 + f"\"{command.name}\",\n"
                 commands_line += " "*8 + "]"
                 f.write(f"{commands_line}\n")
 
