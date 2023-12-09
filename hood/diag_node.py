@@ -96,6 +96,8 @@ class NodeDiag(DiagObj):
         node_parent = context_node
         if node_parent:
             self.session = node_parent.session
+            self.sh_cmd = self.session.sh_cmd
+            self.ssh_cmd = self.session.ssh_cmd
             parent_path = node_parent.node_path
             if parent_path != ":":
                 parent_path += "."

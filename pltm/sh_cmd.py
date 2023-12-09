@@ -6,7 +6,7 @@ class ShellCommand:
         self.logger = logger
 
     def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
-        self.logger.info(f"== run_cmd [{cmd}]")
+        self.logger.info(f"== sh run_cmd [{cmd}]")
         if realtime:
             return self._run_cmd_realtime(cmd, shell=shell, timeout=timeout)
 

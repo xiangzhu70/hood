@@ -74,6 +74,6 @@ if __name__ == "__main__":
         cmd = "cmd " + args.command + " " + \
             tree_arg + " " + " ".join(args.cmd_args)
         cmd_shell.onecmd(cmd)
-        print(f"output_dict = {cmd_shell.output_dict}")
         if args.json:
+            print(f"output_dict = {cmd_shell.output_dict}")
             print(f"output_json: {cmd_shell.output_json}")

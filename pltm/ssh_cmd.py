@@ -46,9 +46,11 @@ class SshCommand:
             ssh.connect(hostname=final_hostname,
                         username=username,
                         pkey=self.private_key)
+            self.logger.debug(f"{final_hostname} connected")
         return ssh
 
-    def ssh_run(self, host, username, cmd):
+    def run_cmd(self, host, username, cmd):
+        self.logger.info(f"== ssh <{host}, {username}> run_cmd [{cmd}]")
         ssh = self.host_connect(host, username)
         channel = ssh.get_transport().open_session()
 
@@ -68,4 +70,8 @@ class SshCommand:
         channel.close()
         ssh.close()
 
+        self.logger.info("-- output: ")
+        for line in lines:
+            self.logger.info(lines)
+        self.logger.info("-- output end")
         return lines

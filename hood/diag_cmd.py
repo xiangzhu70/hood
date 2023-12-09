@@ -12,6 +12,7 @@ class Command(DiagObj):
         self.inst_name = inst_name
         self.obj_path = f"{self.node.node_path}:[cmd]{inst_name}"
         self.sh_cmd = self.node.session.sh_cmd
+        self.ssh_cmd = self.node.session.ssh_cmd
         self.logger = self.node.session.logger
         self.init()
 
