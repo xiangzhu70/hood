@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import textwrap
 from collections import deque
 from pdb import set_trace as stop
@@ -172,6 +173,13 @@ class NodeDiag(DiagObj):
 
         for prop in self.props:
             self.props_dict[prop] = "Unknown"
+
+    # should be overriden for names ending in digits
+    def get_inst_idx(self):
+        m = re.match("\S+(?P<idx>\d+)", self.inst_name)
+        if not m:
+            return None
+        return int(m.group("idx"))
 
     # the lists could be populated by files.  in some cases, the lists
     # depend on specific derived types, so the files do not correspond
@@ -571,15 +579,16 @@ class NodeDiag(DiagObj):
         objs_dict[inst_name] = class_obj
         return class_obj
 
-    def run_cmd(self, cmd):
+    def run_cmd(self, cmd, cmd_args=None):
+        print(f"node run_cmd: cmd {cmd}, args {cmd_args}")
         cmdObj = getattr(self, cmd)
         # for prerequisite in cmdObj.prerequisite_conditions:
         #    pass
-        return cmdObj.run()
+        return cmdObj.run(cmd_args)
 
-    def run_check(self, check):
+    def run_check(self, check, cmd_args=None):
         checkObj = getattr(self, check)
-        return checkObj.run()
+        return checkObj.run(cmd_args)
 
     def remote_run(self, path: str):
         curr_obj = self.session.goto_obj(path)

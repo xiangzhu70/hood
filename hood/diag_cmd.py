@@ -29,10 +29,11 @@ class Command(DiagObj):
         if console_show:
             print(f"-- Command {self.inst_name} run, args={cmd_args}")
 
-    def run_cmd(self, cmd, shell=False, realtime=False, timeout=1):
+    def sh_cmd(self, cmd, shell=False, realtime=False, timeout=1):
         ret = self.sh_cmd.run_cmd(cmd, shell=shell, realtime=realtime, timeout=timeout)
         return ret
 
     def cli_cmd(self, arg_cmd, cmd_args, tree=False):
-        if arg_cmd == "run":
+        if arg_cmd == "run": 
+            # call the run function provided by the user
             self.run(cmd_args)

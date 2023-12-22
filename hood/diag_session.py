@@ -13,6 +13,7 @@ from pdb import set_trace as stop
 import logging
 import sys
 import os
+import re
 diag_version = "0.0.0"
 
 
@@ -37,6 +38,7 @@ class Session:
 
         self.verbose = verbose
         self.output_json = output_json
+        self.node_args = {}
 
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
@@ -57,6 +59,8 @@ class Session:
         self.nodes_visited = {}
         self.mock_patchers = {}
 
+        # it really means the session_args, used by not only
+        # the nodes, but also all the other components.
         if node_args_str:
             self.node_args = parse_key_val_pairs(node_args_str)
 
@@ -77,11 +81,12 @@ class Session:
         if self.verbose:
             print(f"diag_session: Set up cmd run log {cmd_run_log_file}")
         logger = logging.getLogger()
-        logger.removeHandler(logger.handlers[0])  # Remove the default handler
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        # Removes the console handler
+        logger.removeHandler(logger.handlers[0])
+        # handler = logging.StreamHandler()
+        # formatter = logging.Formatter('%(message)s')
+        # handler.setFormatter(formatter)
+        # logger.addHandler(handler)
         if not self.verbose:
             logger.setLevel(logging.INFO)
         else:
@@ -180,8 +185,8 @@ class Session:
     # tree is the bool flag to indicate the command is on the tree mode
     # only or all the nodes underneath.
     # TBD - should this bool flag be specific, or should it be a here?
-    def cli_cmd(self, arg_cmd, args, tree=-1, console_show=True):
-        # print(f"-- diag_session: arg_cmd {arg_cmd}, args {args}, tree {tree}, node_args {self.node_args}")
+    def cli_cmd(self, arg_cmd, args_list, tree=-1, console_show=True):
+        #print(f"-- diag_session: arg_cmd {arg_cmd}, args {args_list}, tree {tree}, node_args {self.node_args}")
         # logger_level = self.logger.level
         # raising logger level is not really needed, because the default log()
         # does self.logger.info()
@@ -189,6 +194,13 @@ class Session:
         # logging level later.
         # if console_show:
         #     self.logger.setLevel(logging.DEBUG)
+        args = {}
+        for arg in args_list:
+            m = re.match(r"(?P<key>\S+)=(?P<val>\S+)", arg)
+            if not m:
+                print("Invalid arg")
+                continue
+            args[m.group("key")] = m.group("val")
         ret = self.curr_obj.cli_cmd(arg_cmd, args, tree)
         # self.logger.setLevel(logger_level)
         return ret

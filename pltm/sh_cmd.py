@@ -25,22 +25,23 @@ class ShellCommand:
         return output
 
     def _run_cmd_realtime(self, cmd, shell=False, timeout=100):
+        # if shell==True, use the raw cmd as the calling param
         if not shell:
             cmd_param = shlex.split(cmd)
         else:
             cmd_param = cmd
-            # if shell==True, use the raw cmd as the calling param
-        try:
-            cmpl = subprocess.run(cmd_param,
-                                  # stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                  timeout=timeout, shell=shell)
-            stdout = cmpl.stdout
-            if isinstance(stdout, bytes):
-                output = stdout.decode().strip()
-            elif not output:
-                output = "None"
-            else:
-                output = stdout
-        except Exception as e:
-            output = str(e)
+
+        output = []
+        process = subprocess.Popen(cmd_param, shell=shell,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        while True:
+            line = process.stdout.readline()
+            if line == '' and process.poll() is not None:
+                break
+            if line:
+                line = line.strip()
+                output.append(line)
+                print(line)
+        rc = process.poll()
+        print(f"process return {rc}")
         return output
