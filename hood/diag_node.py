@@ -243,7 +243,7 @@ class NodeDiag(DiagObj):
 
         # At init time, set up the names dict, so they are legit to access
         # when needed.  The objects will be constructed when being accessed
-        # in __getattr__
+        # in get_obj_by_attr_name()
         for sub_name in self.subs:
             if sub_name in self.map_sub_to_class:
                 sub_type_name = sub_name
@@ -436,7 +436,7 @@ class NodeDiag(DiagObj):
             else:
                 check_name_show = check_name
             print(f"{indent}|--[check] {check_name_show}")
-            check = getattr(node, check_name)
+            check = node.get_obj_by_attr_name(check_name)
             conds = check.ok_sufficient_conditions
             for cond in conds:
                 print(f"{indent}|--|--[suf] {cond}")
@@ -491,12 +491,28 @@ class NodeDiag(DiagObj):
                 NameStyle.underscore_to_camel(obj_name)
         return obj_class_name
 
-    # __getattr__ allows getting <node>.<obj> without having self.<obj>
-    # assigned in code ahead of time.
-    # TBD is it really needed any more?
-    def __getattr__(self, attr_name):
-        if attr_name in ["info"]:
-            return None
+    # # __getattr__ allows getting <node>.<obj> without having self.<obj>
+    # # assigned in code ahead of time.
+    # # TBD is it really needed any more?
+    # def __getattr__(self, attr_name):
+    #     if attr_name in ["info"]:
+    #         return None
+    #     if attr_name not in self.obj_names_dict:
+    #         # if not attr_name.startswith("map_"):
+    #         print(
+    #             f"attr_name <{attr_name}> not in {self.inst_name} obj_names_dict")
+    #         # stop()
+    #         raise AttributeError
+    #     obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
+    #     if not obj:
+    #         print("failed to set up <{attr_name}> obj")
+    #         raise AttributeError
+    #     # TBD looks hacky, should be removed?
+    #     print(f"xxx set up atrribute <{attr_name}> for <{self.inst_name}>")
+    #     setattr(self, attr_name, obj)
+    #     return obj
+
+    def get_obj_by_attr_name(self, attr_name):
         if attr_name not in self.obj_names_dict:
             # if not attr_name.startswith("map_"):
             print(
@@ -507,11 +523,8 @@ class NodeDiag(DiagObj):
         if not obj:
             print("failed to set up <{attr_name}> obj")
             raise AttributeError
-        # TBD looks hacky, should be removed?
-        print(f"xxx set up atrribute <{attr_name}> for <{self.inst_name}>")
-        setattr(self, attr_name, obj)
         return obj
-
+    
     def get_import_path(
         self,
         class_type,
@@ -581,13 +594,13 @@ class NodeDiag(DiagObj):
 
     def run_cmd(self, cmd, cmd_args=None):
         print(f"node run_cmd: cmd {cmd}, args {cmd_args}")
-        cmdObj = getattr(self, cmd)
+        cmdObj = self.get_obj_by_attr_name(cmd)
         # for prerequisite in cmdObj.prerequisite_conditions:
         #    pass
         return cmdObj.run(cmd_args)
 
     def run_check(self, check, cmd_args=None):
-        checkObj = getattr(self, check)
+        checkObj = self.get_obj_by_attr_name(check)
         return checkObj.run(cmd_args)
 
     def remote_run(self, path: str):
@@ -628,7 +641,7 @@ class NodeDiag(DiagObj):
         # print(f"Check {check_name} dep_graph")
         if not check_name:
             check_name = "overall"
-        check = getattr(self, check_name)
+        check = self.get_obj_by_attr_name(check_name)
         # print(f"Check name: {check.name}")
         if level == 0:
             lines.append("digraph {")

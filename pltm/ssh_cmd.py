@@ -2,6 +2,7 @@ import os
 import paramiko
 import logging
 import time
+import socket
 
 paramiko_logger = logging.getLogger('paramiko')
 paramiko_logger.setLevel(logging.WARNING)
@@ -68,9 +69,8 @@ class SshCommand:
             self.logger.debug(f"{final_hostname} connected")
         return ssh
 
-    def run_cmd_with_channel(self, ssh, cmd, tail):
+    def run_cmd_with_channel(self, ssh, cmd, tail, timeout=5):
         channel = ssh.get_transport().open_session()
-        timeout = 5
         if not tail:
             channel.settimeout(timeout)
 
@@ -80,13 +80,15 @@ class SshCommand:
         lines = []
 
         try:
+            start_time = time.time()
             while True:
-                count += 1
-                # print(f"try recving data.  count {count}")
 
-                # Check if any data is available before receiving
+                # commented out the below because recv can return when
+                # there is no data
+                # #Check if any data is available before receiving
                 # if not channel.recv_ready():
                 #     if not tail and (time.time() - start_time > timeout):
+                #         print(f"timed out after {timeout} sec on cmd <{cmd}>")
                 #         raise TimeoutError("No data received within timeout")
                 #     # Slightly delay further checks to avoid unnecessary CPU usage
                 #     time.sleep(0.01)
@@ -94,6 +96,7 @@ class SshCommand:
 
                 data = channel.recv(1024)
                 if not data:
+                    #print(f"no more data on cmd <{cmd}>")                 
                     break
                 decoded = data.decode('utf-8')
                 new_lines = decoded.splitlines()
@@ -103,6 +106,8 @@ class SshCommand:
                     else:
                         lines.append(line)
 
+        except socket.timeout:
+            print("Connection timed out. Please check network connectivity and server availability.")
         except (TimeoutError, KeyboardInterrupt) as e:
             if isinstance(e, KeyboardInterrupt):
                 self.logger.info("sending ctrl-c")
@@ -115,22 +120,43 @@ class SshCommand:
         return lines
 
     # Function to send command to the shell
-    def send_shell_cmd(self, shell, command, sleep=1):
-        shell.send(command + '\n')
-        time.sleep(sleep)
-        # Receive output from the shell
+    def send_shell_cmd(self, shell, command, timeout=5):
         if shell.recv_ready():
-            return shell.recv(4096).decode('utf-8')
-        return ""
+            output = shell.recv(4096).decode('utf-8')
+            # shell initial message not caused by the command
+            # should be thrown away
+            # print("throw away shell initial message--<")
+            # print(output)
+            # print(">--")
+        
+        shell.send(command + '\n')
 
-    def run_cmd_in_shell(self, ssh, cmd, tail):
+        
+        # Receive output from the shell
+        ready = False
+        count_remain = timeout
+        while not ready:
+            ready = shell.recv_ready()
+            if ready:
+                break
+            count_remain -= 1
+            if count_remain <= 0:
+                break
+            time.sleep(1)
+        if not ready:
+            print(f"send_shell_cmd: timed out after {timeout}")
+            return ""
+        output = shell.recv(4096).decode('utf-8')
+        return output
+
+    def run_cmd_in_shell(self, ssh, cmd, tail, timeout=5):
         shell = ssh.invoke_shell()
 
         cmds = cmd.splitlines()
 
         output_lines = []
         for one_cmd in cmds:
-            output = self.send_shell_cmd(shell, one_cmd)
+            output = self.send_shell_cmd(shell, one_cmd, timeout=timeout)
             if tail:
                 print(output)
             else:
@@ -142,15 +168,15 @@ class SshCommand:
     # There will be no timeout.  Use ctrl-c to abort it.
     # Otherwise, it is just one short run.  stop if there is no more 
     # output in 2 sec.
-    def run_cmd(self, host, username, cmd, password=None, shell=False, tail=False):
+    def run_cmd(self, host, username, cmd, password=None, shell=False, tail=False, timeout=5):
         self.logger.info(f"== ssh <{host}, {username}> run_cmd [{cmd}]")
         ssh = self.host_connect(host, username, password=password)
 
 
         if shell:
-            lines = self.run_cmd_in_shell(ssh, cmd, tail)
+            lines = self.run_cmd_in_shell(ssh, cmd, tail, timeout=timeout)
         else:
-            lines = self.run_cmd_with_channel(ssh, cmd, tail)
+            lines = self.run_cmd_with_channel(ssh, cmd, tail, timeout=timeout)
         
         ssh.close()
 

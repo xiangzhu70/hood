@@ -170,7 +170,7 @@ class Session:
         if obj_type == "node":
             curr_obj = self.curr_node
         elif obj_type == "check" or obj_type == "cmd" or obj_type=="prop":
-            curr_obj = getattr(self.curr_node, obj_name)
+            curr_obj = self.curr_node.get_obj_by_attr_name(obj_name)
         else:
             stop()
             raise Exception("unknown target type")
