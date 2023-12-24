@@ -516,7 +516,7 @@ class NodeDiag(DiagObj):
         if attr_name not in self.obj_names_dict:
             # if not attr_name.startswith("map_"):
             print(
-                f"attr_name <{attr_name}> not in {self.inst_name} obj_names_dict")
+                f"attr_name <{attr_name}> not in {self.node_path} obj_names_dict")
             # stop()
             raise AttributeError
         obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
@@ -603,9 +603,9 @@ class NodeDiag(DiagObj):
         checkObj = self.get_obj_by_attr_name(check)
         return checkObj.run(cmd_args)
 
-    def remote_run(self, path: str):
+    def remote_run(self, path: str, cmd_args=None):
         curr_obj = self.session.goto_obj(path)
-        ret = curr_obj.run()
+        ret = curr_obj.run(cmd_args=cmd_args)
         # after remote run, go back to the original node
         self.session.goto_obj(self.node_path)
         return ret

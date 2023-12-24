@@ -107,7 +107,7 @@ class SshCommand:
                         lines.append(line)
 
         except socket.timeout:
-            print("Connection timed out. Please check network connectivity and server availability.")
+            print(f"ssh channel socket timeout on cmd [{cmd}].")
         except (TimeoutError, KeyboardInterrupt) as e:
             if isinstance(e, KeyboardInterrupt):
                 self.logger.info("sending ctrl-c")
