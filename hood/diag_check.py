@@ -590,3 +590,16 @@ class Check(Command):
                 indent=indent + "|--",
                 consequence_dict=consequence_dict,
             )
+
+# A proc is a procedure to make a check condition happen.
+class Proc:
+    def __init__(
+            self,
+            init,           # a command as the initial step
+            rept = None,    # a command as the intermediate steps
+                            # running at an interval
+            interval = 10   # the interval in seconds to run 'rept'
+            ):
+        self.init = init
+        self.rept = rept
+        self.interval = interval

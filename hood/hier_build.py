@@ -64,11 +64,19 @@ class Check:
         self.name = entry.name
         self.pre_list = []
         self.dep_list = []
+        self.proc = None
         for child_entry in entry.children:
             if child_entry.type == "pre":
                 self.pre_list.append(child_entry.name)
             elif child_entry.type == "dep":
                 self.dep_list.append(child_entry.name)
+            elif child_entry.type == "proc":
+                if self.proc:
+                    ("Error: there can be only ONE proc for a check")
+                    exit(-1)
+                self.proc = Proc(child_entry, self)
+            else:
+                print(f"Error: check {self.name}. invalid entry {child_entry.type}")
 
     def write_class_to_file(self, f):
         class_name = underscrore_to_camel(self.name)
@@ -77,7 +85,7 @@ class Check:
         num_pres = len(self.pre_list)
         num_deps = len(self.dep_list)
 
-        if num_pres or num_deps:
+        if num_pres or num_deps or self.proc:
             f.write(" "*4 + "def init(self):\n")
             if num_pres:
                 f.write(" "*8 + "self.pres = [\n")
@@ -89,13 +97,35 @@ class Check:
                 for dep in self.dep_list:
                     f.write(" "*12 + f'"{dep}",\n')
                 f.write(" "*12 + "]\n")
-
+            if self.proc:
+                self.proc.write_construct_line(f, " "*8)
             f.write("\n")
 
         f.write(" "*4 + "def run(self, cmd_args=None):\n")
         run_line = '{self.obj_path}: in run() function'
         f.write(" "*8 + f'self.log(f\"{run_line}\")\n')
         f.write(" "*8 + 'return \"OK\"\n')
+
+class Proc:
+    def __init__(self, entry, check):
+        self.entry = entry
+        self.name = entry.name
+        self.check = check # the parent check this proc is for
+        self.init = None
+        self.rept = None
+        for child_entry in entry.children:
+            if child_entry.type == "init":
+                self.init = child_entry.name
+            elif child_entry.type == "rept":
+                self.rept = child_entry.name
+            else:
+                print(f"Error: proc {self.name}. invalid entry type {child_entry.type}")
+
+    def write_construct_line(self, f, indent):
+        args = f'"{self.init}"'
+        if self.rept:
+            args += f', rept="{self.rept}"'
+        f.write(indent + f"self.proc = Proc({args})\n")
 
 class HierNode:
 
@@ -227,7 +257,7 @@ class HierNode:
         if not f:
             raise Exception(f"Failed to open file {file_name}")
             
-        f.write("from hood.diag_check import Check\n\n")
+        f.write("from hood.diag_check import Check, Proc\n\n")
 
         for check in self.checks_list:
             check.write_class_to_file(f)
