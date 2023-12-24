@@ -22,7 +22,7 @@ class SshCommand:
 
     # This is debuggedd to work with the jump settings in my .ssh/config.
     # More debugging is needed to handle the variations.
-    def host_connect(self, hostname, username, password=None, port=22, ssh_config=None):
+    def host_connect(self, hostname, username, password=None, port=22, ssh_config=None, timeout=10):
         if not password and not self.private_key:
             self.init_key()
 
@@ -44,7 +44,7 @@ class SshCommand:
             jump_fields = proxy_jump.split('@')
             jump_username = jump_fields[0]
             jump_hostname = jump_fields[1]
-            intermediate_ssh = self.host_connect(jump_hostname, jump_username, password=password, ssh_config=ssh_config)
+            intermediate_ssh = self.host_connect(jump_hostname, jump_username, password=password, ssh_config=ssh_config, timeout=timeout)
             sock = intermediate_ssh.get_transport().open_channel('direct-tcpip', (final_hostname, port), ('', 0))
             self.logger.debug(f"proxy_jump final connect: hostname {final_hostname}, username {username}")
             if password:
@@ -63,9 +63,9 @@ class SshCommand:
             else:
                 self.logger.debug(f"key {self.private_key}")
             if password:
-                ssh.connect(hostname=final_hostname, username=username, password=password)
+                ssh.connect(hostname=final_hostname, username=username, password=password, timeout=timeout)
             else:     
-                ssh.connect(hostname=final_hostname, username=username, pkey=self.private_key)
+                ssh.connect(hostname=final_hostname, username=username, pkey=self.private_key, timeout=timeout)
             self.logger.debug(f"{final_hostname} connected")
         return ssh
 
@@ -170,8 +170,7 @@ class SshCommand:
     # output in 2 sec.
     def run_cmd(self, host, username, cmd, password=None, shell=False, tail=False, timeout=5):
         self.logger.info(f"== ssh <{host}, {username}> run_cmd [{cmd}]")
-        ssh = self.host_connect(host, username, password=password)
-
+        ssh = self.host_connect(host, username, password=password, timeout=timeout)
 
         if shell:
             lines = self.run_cmd_in_shell(ssh, cmd, tail, timeout=timeout)
