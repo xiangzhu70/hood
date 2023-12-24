@@ -100,6 +100,7 @@ class NodeDiag(DiagObj):
             self.sh_cmd = self.session.sh_cmd
             self.ssh_cmd = self.session.ssh_cmd
             parent_path = node_parent.node_path
+            self.logger = self.session.logger
             if parent_path != ":":
                 parent_path += "."
             self.node_path = parent_path + inst_name
@@ -593,7 +594,7 @@ class NodeDiag(DiagObj):
         return class_obj
 
     def run_cmd(self, cmd, cmd_args=None):
-        print(f"node run_cmd: cmd {cmd}, args {cmd_args}")
+        self.logger.info(f">>== node {self.node_path} run_cmd: cmd [{cmd}], args [{cmd_args}]")
         cmdObj = self.get_obj_by_attr_name(cmd)
         # for prerequisite in cmdObj.prerequisite_conditions:
         #    pass
