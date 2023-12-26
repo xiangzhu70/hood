@@ -21,10 +21,6 @@ class Check(Command):
         # Check this first.  Save time in OK route.
         self.ok_sufficient_conditions = []
 
-        # Check these to ensure the run() can work.
-        # save time in the FAIL route which necessary
-        # tool is not OK.
-        self.prerequisite_conditions = []
         # dependency / causality conditions.
         self.ok_necessary_conditions = [
             # <check> == OK

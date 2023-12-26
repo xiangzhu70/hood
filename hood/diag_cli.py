@@ -62,11 +62,11 @@ class CmdShell(cmd2.Cmd):
         args.cmd = "show"
         self.do_cmd(args)
 
-    def do_tree(self, args):
+    def do_map(self, args):
         """
-        Show node tree
+        Show node map
         """
-        args.cmd = "tree"
+        args.cmd = "map"
         self.do_cmd(args)
 
     def do_cd(self, args):

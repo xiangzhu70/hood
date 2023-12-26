@@ -14,6 +14,13 @@ class Command(DiagObj):
         self.sh_cmd = self.node.session.sh_cmd
         self.ssh_cmd = self.node.session.ssh_cmd
         self.logger = self.node.session.logger
+
+        # Check these to ensure the run() can work.
+        # save time in the FAIL route which necessary
+        # tool is not OK.
+        # Applicable to both cmmands and checks
+        self.prerequisite_conditions = []
+
         self.init()
 
     def init(self):

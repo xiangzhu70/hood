@@ -17,34 +17,28 @@ from hood.diag_utils import (
 verbose = False
 
 
-class TraverseTreePlugin:
+# Thoughts on tree traversing.  it is getting over complicated.  need rethinking
+# there are a few operations requiring traversing the tree.
+# the original intention is to factor our the common traversing part, use
+# the callback/plugin to specify run_at_node
+# usages are:
+# 1.  show tree
+#   in this case, the node position should be printed
+# 2.  search tree, find an obj of some type, can then do something on it (another callback)
+#   in this case, the node position should not be printed
+# a run_at_node callback looks reasonable.  but dont further complicates the logic
+# with more callbacks.
+
+class AtNodePlugin:
     def run_at_node(self, node, indent):
         pass
 
+class AtNodeShow(AtNodePlugin):
+    def __init__(self, node, show_func):
+        self.node = node
+        self.run_at_node = show_func
 
-class FindAttr(TraverseTreePlugin):
-    def __init__(self, key, key_container=None, show=False, attr_run=None):
-        self.key = key
-        if not key_container:
-            key_container = key + "s"
-        self.key_container = key_container
-        self.show = show
-        self.entry_val_default = None
-        self.found = {}
-        self.attr_run = attr_run
-
-    def run_at_node(self, node, indent):
-        if hasattr(node, self.key_container):
-            for item in node.__dict__[self.key_container]:
-                item_path = f"{node.node_path}:[{self.key}]{item}"
-                self.found[item_path] = self.entry_val_default
-                if self.show:
-                    print(f"{indent}|--[{self.key}] {item}")
-                if self.attr_run:
-                    self.attr_run(node, item, indent)
-
-
-class FindCheckDepPlugin(TraverseTreePlugin):
+class AtNodeFindCheckDep(AtNodePlugin):
     def __init__(
         self,
         cause_dict=None,  # val cause key
@@ -150,6 +144,9 @@ class NodeDiag(DiagObj):
         # the diag checks
         self.checks = []
 
+        # obj dicts are for each 
+        self.sub_objs = {}
+
         # for now, use prop_dict in node to keep the values, for easy implementation,
         # not using the prop obj type
         self.props_dict = {}
@@ -170,6 +167,7 @@ class NodeDiag(DiagObj):
             self.cfg_by_files()
 
         # Optimize sub obj accesses with an obj cache.
+        # why doing this in post_init, after the user init is called?  TBD
         self.objs_dicts_init()
 
         for prop in self.props:
@@ -227,6 +225,7 @@ class NodeDiag(DiagObj):
                 objs_list.append(obj_name)
 
     # Build obj_names_dict as a map of name->obj_type
+    # TBD is obj_names_dict and objs_dicts duplicated?
     def objs_dicts_init(self):
 
         # self.session is not assigned until after the NodeDiag consturction.
@@ -423,44 +422,80 @@ class NodeDiag(DiagObj):
         return tree_dict
 
     def find_attr(self, attr, show_node=False, show=False):
-        plugin = FindAttr(attr, show=show)
+
+        class AtNodeFindAttr(AtNodePlugin):
+            def __init__(self, key, key_container=None, show=False, attr_run=None):
+                self.key = key
+                if not key_container:
+                    key_container = key + "s"
+                self.key_container = key_container
+                self.show = show
+                self.entry_val_default = None
+                self.found = {}
+                self.attr_run = attr_run
+
+            def run_at_node(self, node, indent):
+                if hasattr(node, self.key_container):
+                    for item in node.__dict__[self.key_container]:
+                        item_path = f"{node.node_path}:[{self.key}]{item}"
+                        self.found[item_path] = self.entry_val_default
+                        if self.show:
+                            print(f"{indent}|--[{self.key}] {item}")
+                        if self.attr_run:
+                            self.attr_run(node, item, indent)
+                            
+        plugin = AtNodeFindAttr(attr, show=show)
         self.traverse_tree(0, plugin=plugin, show_node=show_node)
         return plugin.found
 
-    def show_tree(self, show_type=None, tree_level_max=-1, console_show=True):
+    def show_map(self, show_type=None, tree_level_max=-1, console_show=True):
         if not tree_level_max:
             tree_level_max = -1
 
-        def attr_check_run(node, check_name, indent):
+        def tree_show_cmd(node, cmd_name, indent):
+            print(f"{indent}[cmd]{cmd_name}")
+            cmd = node.get_obj_by_attr_name(cmd_name)
+            conds = cmd.prerequisite_conditions
+            for cond in conds:
+                print(f"{indent}|--[pre]{cond}")
+    
+        def tree_show_check(node, check_name, indent):
             if check_name == "overall":
                 check_name_show = ""
             else:
                 check_name_show = check_name
-            print(f"{indent}|--[check] {check_name_show}")
+            print(f"{indent}[chk]{check_name_show}")
             check = node.get_obj_by_attr_name(check_name)
             conds = check.ok_sufficient_conditions
             for cond in conds:
-                print(f"{indent}|--|--[suf] {cond}")
+                print(f"{indent}|--[suf]{cond}")
             conds = check.prerequisite_conditions
             for cond in conds:
-                print(f"{indent}|--|--[pre] {cond}")
+                print(f"{indent}|--[pre]{cond}")
             conds = check.ok_necessary_conditions
             for cond in conds:
-                print(f"{indent}|--|--[dep] {cond}")
+                print(f"{indent}|--[dep]{cond}")
+
+        def tree_show_all(node, indent):
+            for cmd in node.commands:
+                tree_show_cmd(node, cmd, indent)
+            for check in node.checks:
+                tree_show_check(node, check, indent)
 
         if show_type == "check":
-            attr_show = False
-            attr_run = attr_check_run
-        else:
-            attr_show = True
-            attr_run = None
+            show_func = tree_show_check
+        elif show_type == "cmd":
+            show_func = tree_show_cmd
+        else: # default "all"
+            show_func = tree_show_all
 
         if show_type == "node":
-            plugin = None
+            at_node_show = None
         else:
-            plugin = FindAttr(show_type, show=attr_show, attr_run=attr_run)
+            at_node_show = AtNodeShow(show_type, show_func)
+
         tree_dict = self.traverse_tree(
-            0, plugin=plugin, show_node=console_show, tree_level_max=tree_level_max
+            0, plugin=at_node_show, show_node=console_show, tree_level_max=tree_level_max
         )
 
         return tree_dict
@@ -617,7 +652,7 @@ class NodeDiag(DiagObj):
         cause_dict = {}
         consequence_dict = {}
         self.session.goto_obj(self.node_path)
-        plugin = FindCheckDepPlugin(cause_dict, consequence_dict)
+        plugin = AtNodeFindCheckDep(cause_dict, consequence_dict)
         self.traverse_tree(0, plugin=plugin)
         return (cause_dict, consequence_dict)
 
@@ -732,12 +767,12 @@ class NodeDiag(DiagObj):
         ret = None
         if arg_cmd == "show":
             return self.show(cmd_args, console_show=console_show)
-        elif arg_cmd == "tree":
+        elif arg_cmd == "map":
             if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
                 show_type = cmd_args[0]
             else:
-                show_type = "node"
-            return self.show_tree(show_type=show_type,
+                show_type = "all"
+            return self.show_map(show_type=show_type,
                                   tree_level_max=tree_depth,
                                   console_show=console_show)
         elif arg_cmd == "set":

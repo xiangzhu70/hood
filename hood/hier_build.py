@@ -49,10 +49,29 @@ class Command:
         self.entry = entry
         self.node = node
         self.name = entry.name
+        self.pre_list = []
+
+        for child_entry in entry.children:
+            if child_entry.type == "pre":
+                self.pre_list.append(child_entry.name)
+            else:
+                print(f"Error: cmd {self.name}. invalid entry {child_entry.type}")
 
     def write_class_to_file(self, f):
         class_name = underscrore_to_camel(self.name)
         f.write(f"\nclass Command{class_name}(Command):\n\n")
+
+        num_pres = len(self.pre_list)
+
+        if num_pres:
+            f.write(" "*4 + "def init(self):\n")
+            if num_pres:
+                f.write(" "*8 + "self.prerequisite_conditions = [\n")
+                for pre in self.pre_list:
+                    f.write(" "*12 + f'"{pre}",\n')
+                f.write(" "*12 + "]\n")
+            f.write("\n")
+
         f.write(" "*4 + f"def run(self, cmd_args=None):\n")
         run_line = '{self.obj_path}: in run() function'
         f.write(" "*8 + f'self.log(f\"{run_line}\")\n')
@@ -88,12 +107,12 @@ class Check:
         if num_pres or num_deps or self.proc:
             f.write(" "*4 + "def init(self):\n")
             if num_pres:
-                f.write(" "*8 + "self.pres = [\n")
+                f.write(" "*8 + "self.prerequisite_conditions = [\n")
                 for pre in self.pre_list:
                     f.write(" "*12 + f'"{pre}",\n')
                 f.write(" "*12 + "]\n")
             if num_deps:
-                f.write(" "*8 + "self.deps = [\n")
+                f.write(" "*8 + "self.ok_necessary_conditions = [\n")
                 for dep in self.dep_list:
                     f.write(" "*12 + f'"{dep}",\n')
                 f.write(" "*12 + "]\n")
@@ -165,7 +184,10 @@ class HierNode:
                 self.checks_list.append(Check(child_entry, self))
             else:
                 print(f"line {entry.line_num}: {entry.line}")
-                raise Exception(f"invalid sub entry type {child_entry.type} under node")
+                print(f"Error: invalid sub entry type [{child_entry.type}] under node")
+                if child_entry.type == "dep":
+                    print("dep is for a check")
+                    exit(-1)
 
     def build_hier_code(self):
         # create directory here, to allow adding cmds and checks

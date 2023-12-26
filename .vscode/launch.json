@@ -87,7 +87,7 @@
             ]
         },
         {
-            "name": "diag tree",
+            "name": "diag map",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/diag.py",
@@ -96,9 +96,7 @@
             "args": [
                 "~/proj/emu"
                 //"~/proj/data_center_sim/data_center",
-                "tree",
-                //    "-t",
-                //    "4",
+                "map",
             ]
         },
         {
