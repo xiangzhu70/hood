@@ -26,6 +26,10 @@ class Command(DiagObj):
     def init(self):
         pass
 
+    def help(self):
+        # To be overwritten by the specific commands
+        print(f"Command name = {self.inst_name}")
+
     def log(self, log_message):
         self.logger.info(log_message)
 

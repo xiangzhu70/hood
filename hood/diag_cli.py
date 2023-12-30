@@ -15,12 +15,15 @@ cmd_argparser.add_argument("args", nargs="*", help="command args")
 
 
 class CmdShell(cmd2.Cmd):
-    def __init__(self, node_file_path, node_args,
-                 conf_file,
-                 state_file_path,
-                 verbose,
-                 flag_output_json,
-                 console_show = True):
+    def __init__(self,
+            node_file_path,
+            shell_mode,
+            #node_args,
+            #conf_file,
+            #state_file_path,
+            verbose,
+            flag_output_json,
+            console_show = True):
         super().__init__(allow_cli_args=False)
         self.allow_cli_args = False
         self.hidden_commands += [
@@ -35,16 +38,20 @@ class CmdShell(cmd2.Cmd):
             "run_pyscript",
             "run_script",
         ]
+        if not shell_mode:
+            self.hidden_commands += ["cd", "cmd"]
 
         self.flag_output_json = flag_output_json
         self.output_json = None
         self.console_show = console_show
 
-        self.session = Session(node_file_path, node_args,
-                               conf_file,
-                               state_file_path,
-                               verbose,
-                               flag_output_json)
+        self.session = Session(
+            node_file_path,
+            #node_args,
+            #conf_file,
+            #state_file_path,
+            verbose,
+            flag_output_json)
 
         self._set_prompt()
 
@@ -59,15 +66,19 @@ class CmdShell(cmd2.Cmd):
         """
         Show node, command, or check context-specific info.
         """
-        args.cmd = "show"
-        self.do_cmd(args)
+        self.do_cmd("show")
 
     def do_map(self, args):
         """
         Show node map
         """
-        args.cmd = "map"
-        self.do_cmd(args)
+        self.do_cmd("map")
+
+    def do_help(self, args):
+        """
+        Show Help
+        """
+        self.do_cmd("help")
 
     def do_cd(self, args):
         """

@@ -110,8 +110,9 @@ class NodeDiag(DiagObj):
         self.import_path = import_path
 
         # This legit obj names (cmds, checks etc) will be cached here.
-        # TBD needed?  shouldn't objs_dict cover all the caching needs?
-        self.obj_names_dict = {}
+        # Its type is saved in the map, used in __get_class_obj to
+        # construct the object.
+        self.map_name_to_type = {}
 
         # self.map_sub_to_class = {}
         # self.map_cmd_to_class = {}
@@ -224,8 +225,7 @@ class NodeDiag(DiagObj):
                     continue
                 objs_list.append(obj_name)
 
-    # Build obj_names_dict as a map of name->obj_type
-    # TBD is obj_names_dict and objs_dicts duplicated?
+    # Build map_name_to_type as a map of name->obj_type
     def objs_dicts_init(self):
 
         # self.session is not assigned until after the NodeDiag consturction.
@@ -234,7 +234,7 @@ class NodeDiag(DiagObj):
         verbose = self.inst_name != "top" and self.session.verbose
 
         if verbose:
-            print(f"{self.inst_name} obj_names_dict: ")
+            print(f"{self.inst_name} map_name_to_type: ")
 
         # constructed objects will be saved here for fast lookup
         self.objs_dict = {}
@@ -254,19 +254,19 @@ class NodeDiag(DiagObj):
 
             if range_str:
                 self.sub_groups[sub_type_name] = range_str
-            self.obj_names_dict[sub_type_name] = DiagObjType.Node
+            self.map_name_to_type[sub_type_name] = DiagObjType.Node
             if verbose:
                 print(f"    {sub_type_name}, type node")
         for prop_name in self.props:
-            self.obj_names_dict[prop_name] = DiagObjType.Property
+            self.map_name_to_type[prop_name] = DiagObjType.Property
             if verbose:
                 print(f"    {prop_name}, type prop")            
         for cmd_name in self.commands:
-            self.obj_names_dict[cmd_name] = DiagObjType.Command
+            self.map_name_to_type[cmd_name] = DiagObjType.Command
             if verbose:
                 print(f"    {cmd_name}, type cmd")                    
         for check_name in self.checks:
-            self.obj_names_dict[check_name] = DiagObjType.Check
+            self.map_name_to_type[check_name] = DiagObjType.Check
             if verbose:
                 print(f"    {check_name}, type check")  
 
@@ -370,6 +370,15 @@ class NodeDiag(DiagObj):
                 return self.show_checks()
             elif (cmd_args[0]) == "cmd":
                 return self.show_cmds()
+
+    def help(self):
+        print("Commands:")
+        for cmd in self.commands:
+            print(f"  {cmd}")
+
+        print("Checks")
+        for check in self.checks:
+            print(f"  {check}")
 
     def traverse_tree(
         self,
@@ -527,35 +536,14 @@ class NodeDiag(DiagObj):
                 NameStyle.underscore_to_camel(obj_name)
         return obj_class_name
 
-    # # __getattr__ allows getting <node>.<obj> without having self.<obj>
-    # # assigned in code ahead of time.
-    # # TBD is it really needed any more?
-    # def __getattr__(self, attr_name):
-    #     if attr_name in ["info"]:
-    #         return None
-    #     if attr_name not in self.obj_names_dict:
-    #         # if not attr_name.startswith("map_"):
-    #         print(
-    #             f"attr_name <{attr_name}> not in {self.inst_name} obj_names_dict")
-    #         # stop()
-    #         raise AttributeError
-    #     obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
-    #     if not obj:
-    #         print("failed to set up <{attr_name}> obj")
-    #         raise AttributeError
-    #     # TBD looks hacky, should be removed?
-    #     print(f"xxx set up atrribute <{attr_name}> for <{self.inst_name}>")
-    #     setattr(self, attr_name, obj)
-    #     return obj
-
     def get_obj_by_attr_name(self, attr_name):
-        if attr_name not in self.obj_names_dict:
+        if attr_name not in self.map_name_to_type:
             # if not attr_name.startswith("map_"):
             print(
-                f"attr_name <{attr_name}> not in {self.node_path} obj_names_dict")
+                f"attr_name <{attr_name}> not in {self.node_path} map_name_to_type")
             # stop()
             raise AttributeError
-        obj = self.__get_class_obj(self.obj_names_dict[attr_name], attr_name)
+        obj = self.__get_class_obj(self.map_name_to_type[attr_name], attr_name)
         if not obj:
             print("failed to set up <{attr_name}> obj")
             raise AttributeError
@@ -599,9 +587,9 @@ class NodeDiag(DiagObj):
 
         if not inst_name:
             inst_name = obj_name
-        if self.inst_name != "top" and obj_name not in self.obj_names_dict:
+        if self.inst_name != "top" and obj_name not in self.map_name_to_type:
             print(
-                f"obj_name <{obj_name}> not in {self.inst_name} obj_names_dict")
+                f"obj_name <{obj_name}> not in {self.inst_name} map_name_to_type")
             stop()
             raise AttributeError
 
@@ -765,8 +753,12 @@ class NodeDiag(DiagObj):
 
     def cli_cmd(self, arg_cmd, cmd_args, tree_depth=-1, console_show=True):
         ret = None
-        if arg_cmd == "show":
+        if arg_cmd == "help":
+            self.help()
+        elif arg_cmd == "show":
             return self.show(cmd_args, console_show=console_show)
+        elif arg_cmd == "help":
+            return self.help()
         elif arg_cmd == "map":
             if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
                 show_type = cmd_args[0]

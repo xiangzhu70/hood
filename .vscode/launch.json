@@ -24,7 +24,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "emu",
+                "~/proj/emu",
                 "show",
             ]
         },

@@ -40,7 +40,9 @@ node_file_path = os.path.abspath(os.path.expanduser(args.node_file_path))
 cwd = os.getcwd()
 
 # Starts the diag cmd shell.
-cmd_shell = CmdShell(node_file_path,
+cmd_shell = CmdShell(
+    node_file_path,
+    shell_mode = True,
     node_args = None,
     conf_file = None,
     state_file_path = None,

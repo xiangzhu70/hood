@@ -128,9 +128,9 @@ class Session:
         # since the names are already in the dict, easy to look up, to save some typing
         if (
             isinstance(self.curr_obj, NodeDiag)
-            and obj_path_str in self.curr_obj.obj_names_dict
+            and obj_path_str in self.curr_obj.map_name_to_type
         ):
-            class_type = self.curr_obj.obj_names_dict[obj_path_str]
+            class_type = self.curr_obj.map_name_to_type[obj_path_str]
             if class_type in [DiagObjType.Check, DiagObjType.Command, DiagObjType.Property]:
                 obj_path_str = f".:[{class_type.value}]{obj_path_str}"
 
@@ -194,13 +194,27 @@ class Session:
         # logging level later.
         # if console_show:
         #     self.logger.setLevel(logging.DEBUG)
+        if arg_cmd in self.curr_node.map_name_to_type:
+            # the first is a command or a check.
+            obj = self.curr_node.get_obj_by_attr_name(arg_cmd)
+            arg_cmd = "run"
+            if args_list:
+                arg1 = args_list[0]
+                # TBD this system cmd list should go into the check type
+                if arg1 in ["help", "run", "triage", "bring", "show"]:
+                    arg_cmd = arg1
+                    args_list.pop()   
+        else:
+            # is this route still exercised?
+            obj = self.curr_obj
+
         args = {}
         for arg in args_list:
             m = re.match(r"(?P<key>\S+)=(?P<val>\S+)", arg)
             if not m:
-                print("Invalid arg")
+                print(f"Invalid arg: {arg}")
                 continue
             args[m.group("key")] = m.group("val")
-        ret = self.curr_obj.cli_cmd(arg_cmd, args, tree)
+        ret = obj.cli_cmd(arg_cmd, args, tree)
         # self.logger.setLevel(logger_level)
         return ret
