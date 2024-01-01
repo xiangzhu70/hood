@@ -56,7 +56,7 @@ class CmdShell(cmd2.Cmd):
         self._set_prompt()
 
     def _set_prompt(self):
-        self.prompt = f"{self.session.obj_path.path}> "
+        self.prompt = f"{self.session.obj_path}> "
 
     def postcmd(self, stop: bool, line: str) -> bool:
         self._set_prompt()
@@ -66,19 +66,19 @@ class CmdShell(cmd2.Cmd):
         """
         Show node, command, or check context-specific info.
         """
-        self.do_cmd("show")
+        self.do_cmd(f"show {args}")
 
     def do_map(self, args):
         """
         Show node map
         """
-        self.do_cmd("map")
+        self.do_cmd(f"map {args}")
 
     def do_help(self, args):
         """
         Show Help
         """
-        self.do_cmd("help")
+        self.do_cmd(f"help {args}")
 
     def do_cd(self, args):
         """

@@ -43,7 +43,7 @@ cwd = os.getcwd()
 cmd_shell = CmdShell(
     node_file_path,
     shell_mode = True,
-    node_args = None,
+    #node_args = None,
     conf_file = None,
     state_file_path = None,
     verbose = False,

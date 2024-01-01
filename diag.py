@@ -5,11 +5,39 @@
 from pdb import set_trace as stop
 from hood.diag_cli import CmdShell
 import os
+import sys
 import argparse
 diag_version = "0.0.0"
 
 
+def env_fetch():
+    file_path = None
+    node_path = None
+    if "HIER_FILE_PATH" in os.environ:
+        file_path = os.environ["HIER_FILE_PATH"]
+    if "HIER_NODE_PATH" in os.environ:
+        node_path = os.environ["HIER_NODE_PATH"]
+    return (file_path, node_path)
+
+def env_show():
+    (file_path, node_path) = env_fetch()
+    if file_path:
+        print(f"HIER_FILE_PATH: {file_path}")
+    else:
+        print("Missing env HIER_FILE_PATH")
+    if node_path:
+        print(f"HIER_NODE_PATH: {node_path}")
+    else:
+        print("Missing env HIER_NODE_PATH")
+    
 if __name__ == "__main__":
+
+
+    first_arg = sys.argv[1]
+    if first_arg == "env":
+        env_show()
+        exit(0)
+    
     parser = argparse.ArgumentParser(
         description=f"Hierarchical Diag Framework.  Version {diag_version}",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -21,22 +49,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "-j", "--json", action="store_true", help="output json")
 
-    parser.add_argument("node", help="[file_path/]node_path")
+    parser.add_argument("-n", "--node", help="[file_path/]node_path")
     # parser.add_argument("-n", "--node_args", nargs='*',
     #                     help="args to pass to node when entering the node\n"
     #                     "any number of <key>=<value> pairs terminated by -x\n",
     #                     )
-    # parser.add_argument(
-    #     "-x", help="dummpy to terminate node_args", action="store_true")
-    # parser.add_argument("-t", "--tree", type=int, const=-1, nargs="?", help="")
 
     parser.add_argument(
         "command",
         help=
-        "shell -- Enter a command shell at the node\n"
-        "show  -- Show node details\n"
-        "map   -- Show the hierarchy map\n"
-        "help  -- Help info on this node\n"
+        "shell  -- Enter a command shell at the node\n"
+        "show   -- Show node details\n"
+        "map    -- Show the hierarchy map\n"
+        "help   -- Help info on this node\n"
+        "run    -- Run a command or a check\n"
+        "triage -- Run a check recursively following the dep tree"
+        "bring  -- Run the proc for a check recursivly"
         "<node-specific commands>, as listed by 'show'\n",
     )
 
@@ -49,7 +77,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    node_file_path = os.path.abspath(os.path.expanduser(args.node))
+    node_file_path = None
+    if args.node:
+        node_file_path = os.path.abspath(os.path.expanduser(args.node))
+    else:
+        # get node_file_path from env
+        (file_path, node_path) = env_fetch()
+        if not file_path:
+            print("env HIER_FILE_PATH not set.")
+            exit(-1)
+        if not node_path:
+            node_path = ":"
+        node_file_path = f"{file_path}/{node_path}"      
 
     shell_mode = args.command == "shell"
 
@@ -66,7 +105,7 @@ if __name__ == "__main__":
     if args.command == "shell":
         ret = cmd_shell.cmdloop()
     elif args.command in ["show", "map", "help"]:
-        cmd = args.command + " ".join(args.cmd_args)
+        cmd = args.command + " " + " ".join(args.cmd_args)
         ret = cmd_shell.onecmd(cmd)
     else:
         # if args.tree:

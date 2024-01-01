@@ -16,6 +16,7 @@ class DiagObjType(enum.Enum):
     Property = "prop"
     Command = "cmd"
     Check = "check"
+    Proc = "proc"
 
 
 class DiagObj:
@@ -47,125 +48,163 @@ class DiagObj:
     # ..<node> goes up 1 level and go to the sub node,
     # ..2.<node> goes up 2 levels and go to the sub node,
 
-    # output:
+    # obj path includes [<obj_type>]<obj_name>
+    # it could also include a range [..], or even i as index
 
-    class PathMoveAction:
-        def __init__(self,
-                     #  if True, relative from top
-                     #  else relative from current after going up to parent_count level
-                     is_top,
-                     #  the number of levels to go up
-                     parent_count,
-                     # the sub node path with the preceeding "." and ":" stripped
-                     sub_node_path):
+    # The parsing output should be a move_action
+    # 
+
+    # parsing steps:
+    # 1.  head_pos
+    #     interpret the starting :, ., .., ..<num> prefixes
+    # 2.  downstream path
+    #     <node1>.<node2>...<node_n> 
+    #     words separated by . till end of possible :[<type][name]
+    #
+
+    # class PathMoveAction:
+    #     def __init__(self,
+    #                  #  if True, relative from top
+    #                  #  else relative from current after going up to parents_count level
+    #                  is_top,
+    #                  #  the number of levels to go up
+    #                  parents_count,
+    #                  # the sub node path with the preceeding "." and ":" stripped
+    #                  sub_node_path):
+    #         self.is_top = is_top
+    #         self.parents_count = parents_count
+    #         self.sub_node_path = sub_node_path
+
+    class ObjPathParsed:
+        def __init__(self, abs_path, is_top, parents_count, sub_node_path, range, obj_type, obj_name):
+            self.abs_path = abs_path
             self.is_top = is_top
-            self.parent_count = parent_count
+            self.parents_count = parents_count
             self.sub_node_path = sub_node_path
+            self.range = range
+            self.obj_name = obj_name
+            self.obj_type = obj_type
 
-    class Path:
-        def __init__(self, init_path, top_node_name):
-            self.top_node_name = top_node_name
-            self.path = init_path
+        def show(self):
+            print(f"abs_path: {self.abs_path}")
+            print(f"pos: is_top {self.is_top}, parents_count {self.parents_count}")
+            print(f"sub path {self.sub_node_path}, range {self.range}")
+            print(f"obj: name {self.obj_name}, type {self.obj_type}")
 
-        # update this path object, and return the move action
-        # The caller should go to top if top==True
-        # Otherwise, it goes up parents by parents_count, and go to
-        # sub_node_path.
-        def move_path(self, obj_path: str, obj_type=None, verbose=False):
+    class Path:  # DiagObj.Path
+
+        @staticmethod
+        def parse_head_pos(head_pos):
+            is_top = False
+            parents_count = 0
+            if (not head_pos) or (head_pos == "."):
+                pass
+            elif head_pos.startswith(":"):
+                is_top = True
+                # # remove ":"
+                # head_pos = head_pos[1:]
+                # if not head_pos:  # was ":", fill top_node_name
+                #     obj_path = top_node_name
+                # elif not obj_path.startswith(top_node_name):
+                #     # instert top_node_name
+                #     # was ":<obj>", this is the 2nd ":"
+                #     if obj_path.startswith(":"):
+                #         obj_path = top_node_name + obj_path
+                #     else:
+                #         obj_path = top_node_name + "." + obj_path
+            elif head_pos.startswith(".."):
+                while head_pos.startswith(".."):
+                    # ..<\d+>.  ex. ..3.
+                    m = re.match(r"^(?P<count>\d*)\..*", head_pos[2:])
+                    if m:
+                        count_str = m.group("count")
+                        parents_count += int(count_str)
+                        head_pos = head_pos[len(count_str)+1:]
+                    else:
+                        parents_count += 1
+                        head_pos = head_pos[2:]
+                        if len(head_pos) and head_pos[0] == "/":
+                            head_pos = head_pos[1:]
+            return (is_top, parents_count)
+        
+        @staticmethod
+        def parse_obj_str(obj_str):
+            if not obj_str:
+                return (None, None)
+            m = re.match(r"(\[(?P<type>\S+)\])?(?P<name>\w*)", obj_str)
+            if not m:
+                print(obj_str)
+                stop()
+                raise Exception("invalid check_path")
+            obj_type = m.group("type") # optional, could be None
+            obj_name = m.group("name")
+            return (obj_type, obj_name)
+
+
+
+        @staticmethod
+        def resolve_obj_path(
+                obj_path: str,
+                obj_type_in=None,   # from context sometimes the type is known
+                curr_path=None,     # if it is relative path, the curr_path
+                                    # should be provided to derive the final
+                                    # absolute path
+                verbose=False):
+            
+            # in the dependency spec context, skip "[check]".
+            # "node...node:" means "node...node:[check]overall"
+            # "node...node:<check>" means "node...node:[check]<check>"
+            
             parents_count = 0  # current
-            top = False
-            sub_node_path = ""
-            top_node_name = self.top_node_name
-            curr_path = self.path
 
             if verbose:
-                print(f"obj_path {obj_path}, obj_type {obj_type}")
+                print(f"obj_path {obj_path}, obj_type {obj_type_in}")
             # to support "cd [check]<check_name>" case, prepend ".:"
             if obj_path.startswith("["):
                 obj_path = ".:" + obj_path
 
-            if obj_path.startswith(":"):
-                top = True
-                # remove ":"
-                obj_path = obj_path[1:]
-                if not obj_path:  # was ":", fill top_node_name
-                    obj_path = top_node_name
-                elif not obj_path.startswith(top_node_name):
-                    # instert top_node_name
-                    # was ":<obj>", this is the 2nd ":"
-                    if obj_path.startswith(":"):
-                        obj_path = top_node_name + obj_path
-                    else:
-                        obj_path = top_node_name + "." + obj_path
-            elif obj_path.startswith(".."):
-                while obj_path.startswith(".."):
-                    parents_count += 1
-                    obj_path = obj_path[2:]
-                    if len(obj_path) and obj_path[0] == "/":
-                        obj_path = obj_path[1:]
-            elif obj_path.startswith("."):
-                obj_path = obj_path[1:]
-            tmp_parents_count = parents_count
+            # initial cut to head_pos, sub_node_path, obj
+            m = re.match(r"(?P<head_pos>[^a-zA-Z_]+)?(?P<sub_node_path>\w[^:\[]+)(?P<range>\[.*\])?(:(?P<obj>.*))?", obj_path)
+            if not m:
+                raise Exception(f"invalid path [{obj_path}]")
+            (is_top, parents_count) = DiagObj.Path.parse_head_pos(m.group("head_pos"))
+            sub_node_path = m.group("sub_node_path")
+            range = m.group("range")
+            obj_str = m.group("obj") # [check]<check_name>
+            (obj_type, obj_name) = DiagObj.Path.parse_obj_str(obj_str)
 
-            if top:
-                self.path = ":" + obj_path
-            else:
+            if obj_type_in:
+                if obj_type:
+                    if obj_type != obj_type_in.value.lower():
+                        raise Exception("known type conflicting parsed type")
+                else:
+                    obj_type = obj_type_in.value.lower()
+            
+            # find the absolute path for a relative path
+            if not is_top:
+                if not curr_path:
+                    raise Exception("For a relative path, curr_path should be provided")
+                tmp_parents_count = parents_count
                 while tmp_parents_count > 0:
                     rindex = curr_path.rindex(".")
                     curr_path = curr_path[:rindex]
                     tmp_parents_count -= 1
-                if obj_path:
-                    if not obj_path.startswith(":"):
-                        self.path = curr_path + "." + obj_path
-                    else:
-                        self.path = curr_path + obj_path
-                else:
-                    self.path = curr_path
+                abs_path = curr_path + "." + sub_node_path
+            else:
+                abs_path = f":{sub_node_path}"
 
-            # in the dependency spec context, skip "[check]".
-            # "node...node:" means "node...node:[check]overall"
-            # "node...node:<check>" means "node...node:[check]<check>"
-            if obj_type == DiagObjType.Check:
-                obj_path.replace(":", ":[check]")
-            if obj_path.endswith(":[check]"):
-                obj_path += "overall"
+            if obj_type_in == DiagObjType.Check and obj_str is None:
+                obj_name = "overall"
+                obj_type = "check"
 
-            m = re.match(
-                r"^(?P<node_path>[^: ]*)(:(\[(?P<type>\S+)\])?(?P<name>\w*))?", obj_path
-            )
-            if not m:
-                print(obj_path)
-                stop()
-                raise Exception("invalid check_path")
-            sub_node_path = m.group("node_path")
-            self.obj_type = m.group("type")
-            self.obj_name = m.group("name")
+            if obj_type == "chk":
+                obj_type = "check"
 
-            if self.obj_type == "chk":
-                self.obj_type = "check"
+            if obj_str:
+                abs_path += f":[{obj_type}]{obj_name}"
             if verbose:
-                print(f"matched.  obj_path {obj_path}"
-                      f" node_path {sub_node_path}, obj_type {self.obj_type}, obj_name {self.obj_name}")
-            if self.obj_name:  # so it is an attached_obj, not the node itself
-                if obj_type:  # explicitly provided by the caller
-                    expected_type = obj_type.value.lower()
-                    if self.obj_type:
-                        if expected_type != self.obj_type:
-                            stop()
-                            raise Exception("target type unexpected")
-                    else:
-                        # target type not set.  explicitedly instert it.
-                        self.obj_type = expected_type
-                        column_index = self.path.rindex(":")
-                        pre = self.path[: column_index + 1]
-                        post = self.path[column_index + 1:]
-                        self.path = f"{pre}[{expected_type}]{post}"
-            if not self.obj_type:
-                self.obj_type = "node"
-
-            if verbose:
-                print(f"move_path return: top {top}, parents_count {parents_count}, path {sub_node_path}")
-            return DiagObj.PathMoveAction(top, parents_count, sub_node_path)
+                print(f"resolve_obj_path: top {is_top}, abs_path {abs_path} parents_count {parents_count}, obj_type {obj_type}, obj_name {obj_name}")
+            return DiagObj.ObjPathParsed(abs_path, is_top, parents_count, sub_node_path, range, obj_type, obj_name)
 
     @staticmethod
     def construct_obj(
@@ -193,8 +232,6 @@ class DiagObj:
         except Exception as e:
             print(f"construct_class_obj: {class_def} failed.")
             logger.exception(e)
-            stop()
-            print("xxx")
         return classObj
 
     @staticmethod
@@ -211,3 +248,20 @@ class DiagObj:
             obj_name = NameStyle.camel_to_underscore(camel)
             obj_class_names.append((key, obj_name))
         return obj_class_names
+
+
+if __name__ == "__main__":
+
+    for obj_path_params in [
+        (":ab.cd", None),
+        (":ab.cd:[check]ef", None),
+        (".cd:[check]ef", ":ab"),
+        ("..cd.ef.:[check]ef", ":hi.jk.op.qi"),
+        ("..2.cd.ef.:[check]ef", ":hi.jk.op.qi"),
+        ("../..cd.ef.:[check]ef", ":hi.jk.op.qi"),
+    ]:
+        (obj_path, curr_path) = obj_path_params
+        obj_path_parsed = DiagObj.Path.resolve_obj_path(
+            obj_path, curr_path=curr_path)
+        print(f"-- obj_path: {obj_path}, curr_path {curr_path}")
+        obj_path_parsed.show()

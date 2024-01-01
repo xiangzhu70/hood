@@ -28,6 +28,16 @@
                 "show",
             ]
         },
+        // obj path
+        {
+            "name": "obj path parsing",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/hood/diag_obj.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
         // traverse to a check
         // -v emu.em1:[chk]up run
         // -v ~/proj/emu.em1:[chk]up run
@@ -42,6 +52,23 @@
                 "-v",
                 "~/proj/emu.em1:[chk]up",
                 "run",
+            ]
+        },
+        // traverse to a check, show dep
+        // -v -n ~/proj/emu.em1:[chk]up show dep
+        {
+            "name": "check show dep",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/diag.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-v",
+                "-n",
+                "~/proj/emu.em1:[chk]up",
+                "show",
+                "dep",
             ]
         },
         // -v emu.em1:[cmd]get_running_info run

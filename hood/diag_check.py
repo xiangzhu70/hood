@@ -15,7 +15,7 @@ class Check(Command):
         super().__init__(context_node, inst_name, node_file_path, import_path)
         self.node = context_node
         self.inst_name = inst_name
-        self.check_path = f"{self.node.node_path}:[check]{inst_name}"
+        self.check_path = f"{self.node.node_path_inst}:[check]{inst_name}"
         self.obj_path = self.check_path
 
         # Check this first.  Save time in OK route.
@@ -183,7 +183,7 @@ class Check(Command):
         # print(f"mock_check_start: check_path={check_path} == {return_val}")
         # print(f"mock_check_start, self is {self.inst_name}, check_path is {check_path}, run is {self.run}")
         curr_node = self.node
-        curr_node_path = self.node.node_path
+        curr_node_path = self.node.node_path_inst
         session = curr_node.session
 
         check_obj = session.goto_obj(check_path)
@@ -191,7 +191,7 @@ class Check(Command):
         node = check_obj.node
         check_class_name = node.obj_name_to_class_name(DiagObjType.Check, check_name)
         checks_mod_import_path = (
-            session.import_path_prefix + node.node_path[1:] + ".checks"
+            session.import_path_prefix + node.node_path_inst[1:] + ".checks"
         )
         mod = importlib.import_module(checks_mod_import_path)
         # if "asic_presence" in check_path:
@@ -336,7 +336,7 @@ class Check(Command):
         if pre_exist:
             prev = check_pre_label
             for idx, cond in enumerate(check.prerequisite_conditions):
-                session.goto_obj(self.node.node_path)
+                session.goto_obj(self.node.node_path_inst)
                 cond_check_path, cond_status = Check.cond_parse(cond)
                 (cond_node_path, cond_check_name) = Check.check_path_parse(
                     cond_check_path
@@ -365,7 +365,7 @@ class Check(Command):
         dep_parent_label = check_fail_label
         prev_is_composite = False
         for idx, cond in enumerate(check.ok_necessary_conditions):
-            session.goto_obj(self.node.node_path)
+            session.goto_obj(self.node.node_path_inst)
             (cond_check_path, cond_status) = Check.cond_parse(cond)
             (cond_node_path, cond_check_name) = Check.check_path_parse(cond_check_path)
             cond_check_label = self.check_path_to_label(cond_check_path)
@@ -454,7 +454,7 @@ class Check(Command):
                 self.show_consequences()
         elif arg_cmd == "run":
             ret = self.run(cmd_args)
-            print(f"{self.node.node_path}:[check]{self.inst_name} = {ret}")
+            print(f"{self.node.node_path_inst}:[check]{self.inst_name} = {ret}")
         elif arg_cmd == "dep_graph":
             self.node.dep_graph(self.inst_name, lines=[])
         elif arg_cmd == "decision_graph":
@@ -506,6 +506,8 @@ class Check(Command):
     def cond_parse(cond: str):
         if not isinstance(cond, str):
             stop()
+        if "=" not in cond:
+            cond += "==OK"
         m = re.match(r"(?P<cond_check>[^= ]+)\s*==\s*(?P<cond_status>.*)", cond)
         if not m:
             print(f"Invalid condition statement {cond}")
@@ -546,15 +548,27 @@ class Check(Command):
     # dfs traverse and prints out the dependencies
     def show_deps(self, level=0, indent="", cause_dict=None):
 
+        # Rethinking the design.
+        # 1.  The approach here is to first traverse through the entire
+        # tree from the top and establish the cause<->consequence
+        # maps.  This looks unnecessary here, because doing recursion
+        # following the deps starting from the current node is enough
+        # but, show_consequences() does need to establish the global
+        # maps first.  Letting this pair sharing the same structure
+        # is OK.
+        # 2.  Could these maps be in the session?  They are global.
+        # 3.  Not good to update the maps at the node entry time,
+        # because the nodes are lazy-loaded.  The entire tree is not
+        # in the memory until a tree traversing from the top happens.
         if level == 0:
             top_node = self.node.session.top_node
-            cause_dict, consequence_dict = top_node.check_direct_deps_find()
+            cause_dict, consequence_dict = top_node.build_full_dep_map()
             # for key in cause_dict:
             #    print(f"key={key}, deps={cause_dict[key]}")
             indent = "|--"
 
         session = self.node.session
-        check_path = f"{self.node.node_path}:[check]{self.inst_name}"
+        check_path = f"{self.node.node_path_inst}:[check]{self.inst_name}"
         print(f"{indent}{check_path}")
         if check_path not in cause_dict:
             return
@@ -570,13 +584,13 @@ class Check(Command):
 
         if level == 0:
             top_node = self.node.session.top_node
-            cause_dict, consequence_dict = top_node.check_direct_deps_find()
+            cause_dict, consequence_dict = top_node.build_full_dep_map()
             # for key in cause_dict:
             #    print(f"key={key}, deps={cause_dict[key]}")
             indent = "|--"
 
         session = self.node.session
-        check_path = f"{self.node.node_path}:[check]{self.inst_name}"
+        check_path = f"{self.node.node_path_inst}:[check]{self.inst_name}"
         print(f"{indent}{check_path}")
         if check_path not in consequence_dict:
             return

@@ -50,6 +50,15 @@ def parse_key_val_pairs(args=None):
         args_dict[m.group("key")] = m.group("val")
     return args_dict
 
+def args_list_to_dict(args_list):
+    args = {}
+    for arg in args_list:
+        m = re.match(r"(?P<key>\S+)=(?P<val>\S+)", arg)
+        if not m:
+            print(f"Invalid arg: {arg}")
+            continue
+        args[m.group("key")] = m.group("val")
+    return args
 
 def gen_graphviz(lines):
     with tempfile.NamedTemporaryFile(mode="w+") as fp:

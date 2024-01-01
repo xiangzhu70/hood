@@ -45,38 +45,41 @@ class AtNodeFindCheckDep(AtNodePlugin):
         consequence_dict=None,  # val depends on key, is consequence of key
         show=False,
     ):
-        self.key = "check"
-        self.key_container = "checks"
         self.cause_dict = cause_dict
         self.consequence_dict = consequence_dict
         self.show = show
 
-    def add_into_dict(self, cause, consequence):
-        if True:
-            if consequence not in self.cause_dict:
-                self.cause_dict[consequence] = [cause]
-            else:
-                self.cause_dict[consequence].append(cause)
-        if True:
-            if cause not in self.consequence_dict:
-                self.consequence_dict[cause] = [consequence]
-            else:
-                self.consequence_dict[cause].append(consequence)
+    # key -> list[]
+    # cause_dict: consequnce -> [causes]
+    # consequence_dict: cause -> [consequences]
+    def add_into_dep_maps(self, cause, consequence):
+        if consequence not in self.cause_dict:
+            self.cause_dict[consequence] = []
+        self.cause_dict[consequence].append(cause)
+        if cause not in self.consequence_dict:
+            self.consequence_dict[cause] = []
+        self.consequence_dict[cause].append(consequence)
 
+    # Follow ok_necessary_conditions (ie, depencencies, or deps)
+    # build the causes and consequences dicts.
+    # if it is a range, keep the range.  only expand the range
+    # when running the checks.
     def run_at_node(self, node, indent):
         session = node.session
-        if hasattr(node, self.key_container):
-            for item in node.__dict__[self.key_container]:
-                check = getattr(node, item)
-                check_path = f"{node.node_path}:[check]{item}"
-                for cond in check.ok_necessary_conditions:
-                    session.goto_obj(node.node_path)
-                    (cond_check, cond_status) = Check.cond_parse(cond)
-                    session.obj_path.move(
-                        cond_check, obj_type=DiagObjType.Check)
-                    self.add_into_dict(
-                        cause=session.obj_path.path, consequence=check_path
-                    )
+        for item in node.checks:
+            check = node.get_obj_by_attr_name(item)
+            check_path = f"{node.node_path_inst}:[check]{item}"
+            for cond in check.ok_necessary_conditions:
+                session.goto_obj(node.node_path_inst)
+                (cond_check, cond_status) = Check.cond_parse(cond)
+                # this is to expand/normalize the path, and get the result
+                # at session.obj_path.path.  should have a better api function.
+                resolved = DiagObj.Path.resolve_obj_path(
+                    cond_check, obj_type_in=DiagObjType.Check, curr_path=node.node_path_inst)
+                session.obj_path = resolved.abs_path
+                self.add_into_dep_maps(
+                    cause=session.obj_path, consequence=check_path
+                )
 
 
 class NodeDiag(DiagObj):
@@ -93,14 +96,20 @@ class NodeDiag(DiagObj):
             self.session = node_parent.session
             self.sh_cmd = self.session.sh_cmd
             self.ssh_cmd = self.session.ssh_cmd
-            parent_path = node_parent.node_path
+            parent_path = node_parent.node_path_inst
             self.logger = self.session.logger
             if parent_path != ":":
                 parent_path += "."
-            self.node_path = parent_path + inst_name
-
+            self.node_path_inst = parent_path + inst_name
+            m = re.match(r"(?P<base>[^\[]+)(?P<range>\[.*\])?", inst_name)
+            if not m:
+                raise Exception(f"Invalid inst_name {inst_name}")
+            # base is the node_path without the range part
+            self.node_path_base = parent_path + m.group("base")
+            self.range = m.group("range")
         else:
-            self.node_path = ":"
+            self.node_path_inst = ":"
+            self.node_path_base = ":"
 
         self.inst_name = inst_name
         # parent node, often the source of the structure information.
@@ -317,7 +326,7 @@ class NodeDiag(DiagObj):
         if console_show:
             print(f"class name: {type(self).__name__}")
             print(f"inst_name: {self.inst_name}")
-            print(f"node_path: {self.node_path}")
+            print(f"node_path: {self.node_path_inst}")
             print(f"node file path: {self.node_file_path}")
             if hasattr(self, "info"):
                 print(f"Info: {self.info}")
@@ -326,7 +335,7 @@ class NodeDiag(DiagObj):
             self.show_checks()
             self.show_subs()
         show_dict["inst_name"] = self.inst_name
-        show_dict["node_path"] = self.node_path
+        show_dict["node_path"] = self.node_path_inst
         show_dict["props"] = self.props
         show_dict["cmds"] = self.commands
         show_dict["checks"] = self.checks
@@ -394,7 +403,7 @@ class NodeDiag(DiagObj):
             print(f"{indent}{self.inst_name}")
         indent += "|--"
         tree_dict["name"] = self.inst_name
-        tree_dict["node_path"] = self.node_path
+        tree_dict["node_path"] = self.node_path_inst
         tree_dict["children"] = []
         if plugin:
             plugin.run_at_node(node=self, indent=indent)
@@ -426,7 +435,7 @@ class NodeDiag(DiagObj):
                     )
 
         if tree_level == 0:
-            self.session.goto_obj(self.node_path)
+            self.session.goto_obj(self.node_path_inst)
 
         return tree_dict
 
@@ -538,10 +547,7 @@ class NodeDiag(DiagObj):
 
     def get_obj_by_attr_name(self, attr_name):
         if attr_name not in self.map_name_to_type:
-            # if not attr_name.startswith("map_"):
-            print(
-                f"attr_name <{attr_name}> not in {self.node_path} map_name_to_type")
-            # stop()
+            print(f"[{attr_name}] not in [{self.node_path_inst}]")
             raise AttributeError
         obj = self.__get_class_obj(self.map_name_to_type[attr_name], attr_name)
         if not obj:
@@ -555,7 +561,7 @@ class NodeDiag(DiagObj):
         obj_name="",  # for Node type only
         inst_name="",
     ):
-        node_path = self.node_path
+        node_path = self.node_path_base
         import_path = self.import_path
         sub_dir = ""
         sub_node_import_path = ""
@@ -617,7 +623,7 @@ class NodeDiag(DiagObj):
         return class_obj
 
     def run_cmd(self, cmd, cmd_args=None):
-        self.logger.info(f">>== node {self.node_path} run_cmd: cmd [{cmd}], args [{cmd_args}]")
+        self.logger.info(f">>== node {self.node_path_inst} run_cmd: cmd [{cmd}], args [{cmd_args}]")
         cmdObj = self.get_obj_by_attr_name(cmd)
         # for prerequisite in cmdObj.prerequisite_conditions:
         #    pass
@@ -631,22 +637,22 @@ class NodeDiag(DiagObj):
         curr_obj = self.session.goto_obj(path)
         ret = curr_obj.run(cmd_args=cmd_args)
         # after remote run, go back to the original node
-        self.session.goto_obj(self.node_path)
+        self.session.goto_obj(self.node_path_inst)
         return ret
 
     # Find all direct depending checks and build the dict
-    def check_direct_deps_find(self):
+    def build_full_dep_map(self):
 
         cause_dict = {}
         consequence_dict = {}
-        self.session.goto_obj(self.node_path)
+        self.session.goto_obj(self.node_path_inst)
         plugin = AtNodeFindCheckDep(cause_dict, consequence_dict)
         self.traverse_tree(0, plugin=plugin)
         return (cause_dict, consequence_dict)
 
     def check_dependents_find(self, check_name):
         top_node = self.session.top_node
-        cause_dict, consequence_dict = top_node.check_direct_deps_find()
+        cause_dict, consequence_dict = top_node.build_full_dep_map()
 
         check_path = f"{self.node_path}:[check]{check_name}"
         check_all_dependents = []
@@ -738,7 +744,7 @@ class NodeDiag(DiagObj):
                 f.write(head_str + "\n\n")
             f.write(class_def_str)
 
-        print(f"Added {self.node_path}:[{obj_type}]{obj_name}")
+        print(f"Added {self.node_path_inst}:[{obj_type}]{obj_name}")
 
     def prop_set(self, prop, val):
         self.props_dict[prop] = val

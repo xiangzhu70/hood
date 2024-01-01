@@ -27,7 +27,7 @@ class Session:
     def __init__(
         self,
         file_path,
-        node_args_str=None,
+        #node_args_str=None,
         conf_file=None,
         state_file_path="/tmp/diag_state",
         verbose=False,
@@ -38,13 +38,13 @@ class Session:
 
         self.verbose = verbose
         self.output_json = output_json
-        self.node_args = {}
+        #self.node_args = {}
 
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
         self.ssh_cmd = SshCommand(self.logger)
 
-        self.state = DiagState(conf_file, state_file_path)
+        #self.state = DiagState(conf_file, state_file_path)
 
         dir_path, entry_obj_path = os.path.split(file_path)
         self.top_node_name = entry_obj_path.partition('.')[0]
@@ -61,11 +61,12 @@ class Session:
 
         # it really means the session_args, used by not only
         # the nodes, but also all the other components.
-        if node_args_str:
-            self.node_args = parse_key_val_pairs(node_args_str)
+        # if node_args_str:
+        #     self.node_args = parse_key_val_pairs(node_args_str)
 
-        self.obj_path = DiagObj.Path(
-            init_path=":", top_node_name=self.top_node_name)
+        # self.obj_path = DiagObj.Path(
+        #     init_path=":", top_node_name=self.top_node_name)
+        #  self.obj_path = f":{self.top_node_name}"
         # self.setup_top_node(self.top_node_name, node_file_path=dir_path)
         # self.goto_obj(entry_obj_path)
         self.setup_top_empty_node(
@@ -106,6 +107,7 @@ class Session:
         self.curr_obj = top_empty_node
         self.top_node = top_empty_node
         self.nodes_visited[":"] = top_empty_node
+        self.obj_path = ":"
         return top_empty_node
 
     # def setup_and_goto_top_node(self, top_node_name, node_file_path=""):
@@ -126,6 +128,12 @@ class Session:
         # shortcut case
         # 'cd inband_ping" will go to .:[check]inband_ping.
         # since the names are already in the dict, easy to look up, to save some typing
+            
+        if obj_path_str == ":":
+            # don't botter to handle this specical case in the path parsing
+            self.curr_node = self.top_node
+            return self.top_node
+
         if (
             isinstance(self.curr_obj, NodeDiag)
             and obj_path_str in self.curr_obj.map_name_to_type
@@ -134,22 +142,25 @@ class Session:
             if class_type in [DiagObjType.Check, DiagObjType.Command, DiagObjType.Property]:
                 obj_path_str = f".:[{class_type.value}]{obj_path_str}"
 
-        move_action = self.obj_path.move_path(
-            obj_path_str, obj_type=obj_type, verbose=verbose
+        #if self.curr_obj
+        resolved = DiagObj.Path.resolve_obj_path(
+            obj_path_str, obj_type_in=obj_type, curr_path=self.curr_node.node_path_inst, verbose=verbose
         )
-        (top, parent_count, sub_node_path) = (move_action.is_top,
-                                              move_action.parent_count, move_action.sub_node_path)
+        parents_count = resolved.parents_count
+        sub_node_path = resolved.sub_node_path
+        obj_type = resolved.obj_type
+        if not obj_type:
+            obj_type = "node"
+        obj_name = resolved.obj_name
 
-        obj_type = self.obj_path.obj_type
-        obj_name = self.obj_path.obj_name
-        if self.obj_path.path != self.curr_node.node_path:
-            if top:
+        if resolved.abs_path != self.curr_node.node_path_inst:
+            if resolved.is_top:
                 curr = self.top_node
             else:
                 curr = self.curr_node
-                while parent_count > 0:
+                while parents_count > 0:
                     curr = curr.node_parent
-                    parent_count -= 1
+                    parents_count -= 1
             while sub_node_path:
                 find_start_pos = 0
                 while True:
@@ -208,13 +219,6 @@ class Session:
             # is this route still exercised?
             obj = self.curr_obj
 
-        args = {}
-        for arg in args_list:
-            m = re.match(r"(?P<key>\S+)=(?P<val>\S+)", arg)
-            if not m:
-                print(f"Invalid arg: {arg}")
-                continue
-            args[m.group("key")] = m.group("val")
-        ret = obj.cli_cmd(arg_cmd, args, tree)
+        ret = obj.cli_cmd(arg_cmd, args_list, tree)
         # self.logger.setLevel(logger_level)
         return ret
