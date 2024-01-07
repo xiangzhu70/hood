@@ -3,9 +3,9 @@
 #  A hierarchical OO diag framework to organize the information and tools
 
 from hood.diag_state import DiagState
-from hood.diag_utils import parse_key_val_pairs
-from pltm.sh_cmd import ShellCommand
-from pltm.ssh_cmd import SshCommand
+from utils.diag_utils import parse_key_val_pairs
+from utils.sh_cmd import ShellCommand
+from utils.ssh_cmd import SshCommand
 from hood.diag_obj import DiagObjType, DiagObj
 from hood.diag_node import NodeDiag
 from hood.diag_check import Check

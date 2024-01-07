@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from hood.diag_cmd import Command
 from hood.diag_obj import DiagObjType
-from hood.diag_utils import gen_graphviz
+from utils.diag_utils import gen_graphviz
 
 
 class Check(Command):

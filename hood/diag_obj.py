@@ -4,7 +4,7 @@ import re
 from pdb import set_trace as stop
 
 
-from hood.diag_utils import NameStyle
+from utils.diag_utils import NameStyle
 
 import logging
 logging.basicConfig(level=logging.INFO)
