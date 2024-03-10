@@ -3,6 +3,7 @@ import paramiko
 import logging
 import time
 import socket
+import fabric
 
 paramiko_logger = logging.getLogger('paramiko')
 paramiko_logger.setLevel(logging.WARNING)
@@ -60,8 +61,9 @@ class SshCommand:
             #import pdb; pdb.set_trace()
             if password:
                 self.logger.debug(f"password {password}")
-            else:
-                self.logger.debug(f"key {self.private_key}")
+            # else:
+            #     # import pdb; pdb.set_trace()
+            #     # self.logger.debug(f"key {self.private_key}")
             if password:
                 ssh.connect(hostname=final_hostname, username=username, password=password, timeout=timeout)
             else:     
@@ -69,7 +71,7 @@ class SshCommand:
             self.logger.debug(f"{final_hostname} connected")
         return ssh
 
-    def run_cmd_with_channel(self, ssh, cmd, tail, timeout=5):
+    def run_cmd_with_channel(self, ssh, cmd, tail, timeout=0.5):
         channel = ssh.get_transport().open_session()
         if not tail:
             channel.settimeout(timeout)
@@ -80,19 +82,24 @@ class SshCommand:
         lines = []
 
         try:
-            start_time = time.time()
+            
             while True:
 
                 # commented out the below because recv can return when
                 # there is no data
                 # #Check if any data is available before receiving
-                # if not channel.recv_ready():
-                #     if not tail and (time.time() - start_time > timeout):
-                #         print(f"timed out after {timeout} sec on cmd <{cmd}>")
-                #         raise TimeoutError("No data received within timeout")
-                #     # Slightly delay further checks to avoid unnecessary CPU usage
-                #     time.sleep(0.01)
-                #     continue
+
+                # wait for recv_ready for timeout time
+                start_time = time.time()
+                while (not channel.recv_ready()) and ((time.time() - start_time < timeout)):
+                    # Slightly delay further checks to avoid unnecessary CPU usage
+                    time.sleep(0.01)
+                    continue
+
+                if not channel.recv_ready():
+                    # print(f"timed out after {timeout} sec on cmd <{cmd}>")
+                    # raise TimeoutError("No data received within timeout")
+                    break
 
                 data = channel.recv(1024)
                 if not data:
@@ -168,11 +175,17 @@ class SshCommand:
     # There will be no timeout.  Use ctrl-c to abort it.
     # Otherwise, it is just one short run.  stop if there is no more 
     # output in 2 sec.
-    def run_cmd(self, host, username, cmd, password=None, shell=False, tail=False, timeout=5):
+    def run_cmd(
+            self, host, username, cmd, password=None, shell=False, tail=False,
+            timeout=1   # if too short, it could return without the data becomes ready
+                        # if too long, it cost time to wait when there is no more data
+                ):
         self.logger.info(f"== ssh <{host}, {username}> run_cmd [{cmd}]")
         ssh = self.host_connect(host, username, password=password, timeout=timeout)
 
         if shell:
+            if timeout < 5:
+                timeout = 5
             lines = self.run_cmd_in_shell(ssh, cmd, tail, timeout=timeout)
         else:
             lines = self.run_cmd_with_channel(ssh, cmd, tail, timeout=timeout)

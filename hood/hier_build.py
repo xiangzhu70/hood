@@ -149,7 +149,6 @@ class Proc:
 class HierNode:
 
     def __init__(self, entry, parent):
-        print(f"entry {entry}, parent {parent}")
         if not entry:  # top empty node
             return
 
@@ -192,7 +191,7 @@ class HierNode:
     def build_hier_code(self):
         # create directory here, to allow adding cmds and checks
         # the node_diag file will be created later after having subs[]
-        print(f"mkdir {self.os_path}")
+        # print(f"mkdir {self.os_path}")
         os.makedirs(self.os_path, exist_ok=True)
 
         self.create_node_file()
@@ -380,7 +379,6 @@ class Hier:
             raise Exception(f"The top entry should be a node")
         
         self.top_node = HierNode(top_entry, top_empty_node)
-        print(f"top_node {self.top_node}")
     
     def build_hier_code(self):
         self.top_node.build_hier_code()

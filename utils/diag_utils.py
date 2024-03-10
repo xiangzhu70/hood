@@ -3,7 +3,9 @@
 import os
 import re
 import tempfile
-
+import time
+import re
+from datetime import datetime, timedelta
 from pdb import set_trace as stop
 
 # ("pim[1..8]") should return ("pim", "1..8", [1..8])
@@ -129,3 +131,35 @@ class NameStyle:
 
 
 
+def wait_till_time(time_start):
+
+    target_time = datetime.strptime(time_start, "%I:%M%p").time()
+    curr_time = datetime.now().time()
+
+    # Determine if target time is today or tomorrow
+    if target_time < curr_time:
+        target_date = datetime.now().date() + timedelta(days=1)
+    else:
+        target_date = datetime.now().date()
+
+    # Combine the target date and time
+    time_start = datetime.combine(target_date, target_time)
+
+    # Check if time_start is valid (though it should be valid if the input format is correct)
+    if time_start < datetime.now():
+        print(f"Invalid time_start {time_start}")
+        return False
+
+    # Calculate remaining time in minutes
+    print(f"will start at {time_start}.")
+    
+    while True:
+        remaining_sec = (time_start - datetime.now()).total_seconds()
+        if remaining_sec <= 0:
+            break
+        curr_time_str = datetime.now().strftime("%H:%M:%S")
+        remaining_min = remaining_sec / 60
+        print(f"time: {curr_time_str}, time remaining {remaining_min:.2f} min")
+        time.sleep(60)
+
+    return True

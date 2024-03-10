@@ -13,6 +13,7 @@ from pdb import set_trace as stop
 import logging
 import sys
 import os
+import datetime
 import re
 diag_version = "0.0.0"
 
@@ -39,6 +40,8 @@ class Session:
         self.verbose = verbose
         self.output_json = output_json
         #self.node_args = {}
+
+        self.start_time = datetime.datetime.now()
 
         self.setup_logging()
         self.sh_cmd = ShellCommand(self.logger)
@@ -78,7 +81,10 @@ class Session:
             exit(-1)
 
     def setup_logging(self):
-        cmd_run_log_file = "/tmp/diag_run.log"
+        #time_str = f"{self.start_time.hour:02d}{self.start_time.minute:02d}"
+        session_str = os.getlogin()
+        cmd_run_log_file = f"/tmp/diag_run_{session_str}.log"
+        print(f"run log: {cmd_run_log_file}")
         if self.verbose:
             print(f"diag_session: Set up cmd run log {cmd_run_log_file}")
         logger = logging.getLogger()
@@ -214,7 +220,7 @@ class Session:
                 # TBD this system cmd list should go into the check type
                 if arg1 in ["help", "run", "triage", "bring", "show"]:
                     arg_cmd = arg1
-                    args_list.pop()   
+                    args_list.pop(0)   
         else:
             # is this route still exercised?
             obj = self.curr_obj

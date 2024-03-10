@@ -97,12 +97,10 @@ class CmdShell(cmd2.Cmd):
         """
         Run a command on the current node
         """
-        # print(f"cmd: {args}")
-
         # web server also calls session.cli_cmd() this way
-
+        args_list = args.args
         self.output_dict = self.session.cli_cmd(
-            args.cmd, args.args, tree=args.depth, console_show=self.console_show)
+            args.cmd, args_list, tree=args.depth, console_show=self.console_show)
         if self.flag_output_json:
             self.output_json = json.dumps(self.output_dict)
 

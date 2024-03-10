@@ -443,6 +443,7 @@ class Check(Command):
         )
 
     def cli_cmd(self, arg_cmd, cmd_args, tree=False, console_show=True):
+        stop()
         if arg_cmd == "help":
             self.help()
         elif arg_cmd == "show" and console_show: # to be cleaned up.

@@ -22,11 +22,11 @@ def env_fetch():
 def env_show():
     (file_path, node_path) = env_fetch()
     if file_path:
-        print(f"HIER_FILE_PATH: {file_path}")
+        print(f"HIER_FILE_PATH={file_path}")
     else:
         print("Missing env HIER_FILE_PATH")
     if node_path:
-        print(f"HIER_NODE_PATH: {node_path}")
+        print(f"HIER_NODE_PATH={node_path}")
     else:
         print("Missing env HIER_NODE_PATH")
     
