@@ -1,7 +1,8 @@
 # from pdb import set_trace as stop
 
 from hood.diag_obj import DiagObj
-
+from utils.sh_cmd import ShellCommand
+from utils.ssh_cmd import SshCommand
 
 class Command(DiagObj):
 
@@ -11,8 +12,9 @@ class Command(DiagObj):
         self.node = context_node
         self.inst_name = inst_name
         self.obj_path = f"{self.node.node_path_inst}:[cmd]{inst_name}"
-        self.sh_cmd = self.node.session.sh_cmd
-        self.ssh_cmd = self.node.session.ssh_cmd
+        self.sh_cmd = ShellCommand
+        self.ssh_cmd = SshCommand
+
         self.logger = self.node.session.logger
 
         # Check these to ensure the run() can work.

@@ -4,8 +4,7 @@
 
 from hood.diag_state import DiagState
 from utils.diag_utils import parse_key_val_pairs
-from utils.sh_cmd import ShellCommand
-from utils.ssh_cmd import SshCommand
+
 from hood.diag_obj import DiagObjType, DiagObj
 from hood.diag_node import NodeDiag
 from hood.diag_check import Check
@@ -44,8 +43,6 @@ class Session:
         self.start_time = datetime.datetime.now()
 
         self.setup_logging()
-        self.sh_cmd = ShellCommand(self.logger)
-        self.ssh_cmd = SshCommand(self.logger)
 
         #self.state = DiagState(conf_file, state_file_path)
 
