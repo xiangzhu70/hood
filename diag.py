@@ -8,7 +8,7 @@ import os
 import sys
 import argparse
 diag_version = "0.0.0"
-
+diag_desc = f"Hierarchical Diag Framework.  Version {diag_version}"
 
 def env_fetch():
     file_path = None
@@ -32,6 +32,7 @@ def env_show():
     
 if __name__ == "__main__":
 
+    print("\n" + "="*50 +f"\n    {diag_desc}\n" + "-"*50 + "\n")
 
     first_arg = sys.argv[1]
     if first_arg == "env":
@@ -39,7 +40,7 @@ if __name__ == "__main__":
         exit(0)
     
     parser = argparse.ArgumentParser(
-        description=f"Hierarchical Diag Framework.  Version {diag_version}",
+        description=diag_desc,
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
@@ -84,6 +85,7 @@ if __name__ == "__main__":
         # get node_file_path from env
         (file_path, node_path) = env_fetch()
         if not file_path:
+            print("-n <node> missing, not finding it from env either")
             print("env HIER_FILE_PATH not set.")
             exit(-1)
         if not node_path:
@@ -95,9 +97,6 @@ if __name__ == "__main__":
     cmd_shell = CmdShell(
         node_file_path,
         shell_mode = shell_mode,
-        #args.node_args,
-        #conf_file=args.conf,
-        #state_file_path=args.state_path,
         verbose=args.verbose,
         flag_output_json=args.json)
 
@@ -118,5 +117,4 @@ if __name__ == "__main__":
         # Always go through the Cmd2 module, even not in shell mode
         ret = cmd_shell.onecmd(cmd)
     if args.json:
-        print(f"output_dict = {cmd_shell.output_dict}")
         print(f"output_json: {cmd_shell.output_json}")

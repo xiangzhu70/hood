@@ -15,7 +15,7 @@ def group_str_parse(group_str):
     inst = None
 
     # type_name is before the first '['
-    m = re.match(r"(?P<type_name>[^\[]+)\[(?P<range_str>\S+)\]$", group_str)
+    m = re.match(r"(?P<type_name>[^\[]+)\[(?P<range_str>\S*)\]$", group_str)
     if not m:
         m = re.match(r"(?P<type_name>\S+)(?P<inst>\d+)$", group_str)
         if m:

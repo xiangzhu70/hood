@@ -109,6 +109,10 @@ class NodeDiag(DiagObj):
             self.node_path_inst = ":"
             self.node_path_base = ":"
 
+        # if a group node, it will have some group managing commands such as
+        # new, list, delete.
+        self.is_group = False
+
         self.inst_name = inst_name
         # parent node, often the source of the structure information.
         self.node_parent = node_parent
@@ -324,19 +328,24 @@ class NodeDiag(DiagObj):
         if console_show:
             print(f"class name: {type(self).__name__}")
             print(f"inst_name: {self.inst_name}")
+            print(f"is_group: {self.is_group}")
             print(f"node_path: {self.node_path_inst}")
             print(f"node file path: {self.node_file_path}")
             if hasattr(self, "info"):
                 print(f"Info: {self.info}")
-            self.show_props()
-            self.show_cmds()
-            self.show_checks()
-            self.show_subs()
-        show_dict["inst_name"] = self.inst_name
-        show_dict["node_path"] = self.node_path_inst
-        show_dict["props"] = self.props
-        show_dict["cmds"] = self.commands
-        show_dict["checks"] = self.checks
+            show_dict["inst_name"] = self.inst_name
+            show_dict["node_path"] = self.node_path_inst    
+            if self.is_group:
+                show_dict["cmds"] = self.show_group_cmds()
+            else:
+                self.show_props()
+                self.show_cmds()
+                self.show_checks()
+                self.show_subs()
+        if not self.is_group:
+            show_dict["props"] = self.props
+            show_dict["cmds"] = self.commands
+            show_dict["checks"] = self.checks
         return show_dict
 
     def show_props(self):
@@ -365,6 +374,10 @@ class NodeDiag(DiagObj):
         for cmd in self.commands:
             print(f"  {cmd}")
         return self.commands
+
+    def show_group_cmds(self):
+        self.group_commands = ["new", "delete"]
+        return self.group_commands
 
     def show(self, cmd_args, console_show=True):
         # print(cmd_args)
@@ -763,7 +776,7 @@ class NodeDiag(DiagObj):
             return self.show(cmd_args, console_show=console_show)
         elif arg_cmd == "help":
             return self.help()
-        elif arg_cmd == "map":
+        elif arg_cmd == "map" or arg_cmd == "tree":
             if len(cmd_args) and cmd_args[0] in ["node", "check", "cmd"]:
                 show_type = cmd_args[0]
             else:

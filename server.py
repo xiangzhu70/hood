@@ -43,9 +43,6 @@ cwd = os.getcwd()
 cmd_shell = CmdShell(
     node_file_path,
     shell_mode = True,
-    #node_args = None,
-    conf_file = None,
-    state_file_path = None,
     verbose = False,
     flag_output_json = True,
     console_show = False)
@@ -69,6 +66,7 @@ cmd_shell.session.logger.addHandler(socketio_log_handler)
 @app.route("/")
 def base():
     print("route /")
+    print(f"frontend_path: {frontend_path}")
     return send_from_directory(frontend_path, "index.html")
 
 

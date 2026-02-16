@@ -18,9 +18,6 @@ class CmdShell(cmd2.Cmd):
     def __init__(self,
             node_file_path,
             shell_mode,
-            #node_args,
-            #conf_file,
-            #state_file_path,
             verbose,
             flag_output_json,
             console_show = True):
@@ -102,7 +99,7 @@ class CmdShell(cmd2.Cmd):
         self.output_dict = self.session.cli_cmd(
             args.cmd, args_list, tree=args.depth, console_show=self.console_show)
         if self.flag_output_json:
-            self.output_json = json.dumps(self.output_dict)
+            self.output_json = json.dumps(self.output_dict, indent=4)
 
 
 class CliNameSpace:

@@ -14,6 +14,8 @@ import sys
 import os
 import datetime
 import re
+import getpass
+
 diag_version = "0.0.0"
 
 
@@ -79,7 +81,7 @@ class Session:
 
     def setup_logging(self):
         #time_str = f"{self.start_time.hour:02d}{self.start_time.minute:02d}"
-        session_str = os.getlogin()
+        session_str = getpass.getuser()
         cmd_run_log_file = f"/tmp/diag_run_{session_str}.log"
         print(f"run log: {cmd_run_log_file}")
         if self.verbose:

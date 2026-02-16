@@ -152,7 +152,7 @@ class HierNode:
         if not entry:  # top empty node
             return
 
-        m = re.match(r"(?P<node_name>[^\[^ ]+)(?P<range_str>\[\S+\])?", entry.name)
+        m = re.match(r"(?P<node_name>[^\[^ ]+)(?P<range_str>\[\S*\])?", entry.name)
         if not m:
             raise Exception(f"invalid node name {entry.name}")
         self.node_name = m.group("node_name")
@@ -210,6 +210,8 @@ class HierNode:
                 f.write("from hood.diag_node import NodeDiag\n\n")
                 f.write(f"class Node{class_name}(NodeDiag):\n\n")
                 f.write(f"    def init(self):\n")
+                if self.range_str:
+                    f.write(" "*8 + "self.is_group = True\n")
                 # write subs
                 subs_line = " "*8 + "self.subs = [\n"
                 for sub in self.sub_nodes:

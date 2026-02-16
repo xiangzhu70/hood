@@ -1,2 +1,5 @@
 __pycache__/
 
+front_build/
+
+.DS_Store
